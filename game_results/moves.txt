@@ -1,13 +1,8 @@
 PLAYER: 1
-CATCH
-SCORE ON THE MOVE: 32
+ALIVE
+SCORE ON THE MOVE: 18
 ----------------
 PLAYER: 2
-WAZ
-SCORE ON THE MOVE: 29
+HOAXES
+SCORE ON THE MOVE: 32
 ----------------
-GAME ENDED
-----------
-FINAL SCORE: 
-Player1: 19
-Player2: 21
