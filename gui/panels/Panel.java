@@ -109,6 +109,25 @@ public class Panel extends JPanel implements ActionListener {
         // Wire up drag-and-drop: rack tiles report drops directly to this panel.
         tileRackComponent.setBoardGridComponent(boardGridComponent);
         tileRackComponent.setDropListener(this::handleTileDrop);
+
+        // Wire up dragging tiles that are already on the board (but only
+        // this turn's not-yet-submitted ones) to another cell or back to the rack.
+        boardGridComponent.setDragListener(new BoardGridComponent.BoardTileDragListener() {
+            @Override
+            public boolean isMovable(int row, int col) {
+                return findTempIndexAt(row, col) != -1;
+            }
+
+            @Override
+            public void onBoardTileMoved(int fromRow, int fromCol, int toRow, int toCol) {
+                handleBoardTileMoved(fromRow, fromCol, toRow, toCol);
+            }
+
+            @Override
+            public void onBoardTileReturnedToRack(int fromRow, int fromCol) {
+                handleBoardTileReturnedToRack(fromRow, fromCol);
+            }
+        });
     }
 
     @Override
@@ -461,7 +480,7 @@ public class Panel extends JPanel implements ActionListener {
 
     private void tile_setter(int i) {
     if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
-        if (!boardGridComponent.isFreeTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
+        if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
             current_tile_selected.clear();
             current_letter_selected = null;
             return;
@@ -588,6 +607,71 @@ public class Panel extends JPanel implements ActionListener {
             boardGridComponent.getButton(row, col).setBackground(new Color(242, 191, 118));
         }
         temp_positions.add(new int[]{row, col});
+
+        refresh();
+        repaint();
+    }
+
+    /** Index into temp_positions/tiles_selected_from_rack for the cell (r, c) this turn, or -1 if it's not one of this turn's placements. */
+    private int findTempIndexAt(int r, int c) {
+        for (int i = 0; i < temp_positions.size(); i++) {
+            if (temp_positions.get(i)[0] == r && temp_positions.get(i)[1] == c) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Called by BoardGridComponent when a tile placed this turn is dragged
+     * from one board cell to a different, empty one.
+     */
+    private void handleBoardTileMoved(int fromRow, int fromCol, int toRow, int toCol) {
+        int idx = findTempIndexAt(fromRow, fromCol);
+        if (idx == -1) return; // shouldn't happen; isMovable already gated this
+
+        if (!isCellAvailable(toRow, toCol)) {
+            JOptionPane.showMessageDialog(this, "This square is already occupied!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
+            return; // origin cell's icon/background were already restored by BoardGridComponent
+        }
+
+        Tile tile = tiles_selected_from_rack.get(idx);
+
+        // Revert the old cell back to its default board appearance.
+        boardGridComponent.resetSingleTile(fromRow, fromCol, ref_board);
+
+        // Paint the tile onto its new cell.
+        ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(tile.letter).toUpperCase() + ".png");
+        Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
+        icon = new ImageIcon(image);
+        boardGridComponent.getButton(toRow, toCol).setIcon(icon);
+        if (!boardGridComponent.isSpecialTile(ref_board, toRow, toCol)) {
+            boardGridComponent.getButton(toRow, toCol).setBackground(new Color(242, 191, 118));
+        }
+
+        temp_positions.set(idx, new int[]{toRow, toCol});
+
+        refresh();
+        repaint();
+    }
+
+    /**
+     * Called by BoardGridComponent when a tile placed this turn is dragged
+     * off the board entirely -- sends it back to the owning player's rack.
+     */
+    private void handleBoardTileReturnedToRack(int fromRow, int fromCol) {
+        int idx = findTempIndexAt(fromRow, fromCol);
+        if (idx == -1) return;
+
+        Tile tile = tiles_selected_from_rack.remove(idx);
+        temp_positions.remove(idx);
+
+        if (player == 1) {
+            tiles_present_player1.add(tile);
+        } else {
+            tiles_present_player2.add(tile);
+        }
+
+        boardGridComponent.resetSingleTile(fromRow, fromCol, ref_board);
+        tile_rack_rearrange();
 
         refresh();
         repaint();

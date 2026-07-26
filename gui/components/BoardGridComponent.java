@@ -5,12 +5,33 @@ import application.model.BoardCell;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 public class BoardGridComponent {
     private JButton[][] buttons = new JButton[15][15];
     private boolean[][] tempBoard = new boolean[15][15];
     private Container container;
+    private BoardTileDragListener dragListener;
+
+    /**
+     * Lets Panel control which board tiles can be picked back up and
+     * dragged (only this turn's not-yet-committed placements), and tells
+     * Panel what happened when a drag ends.
+     */
+    public interface BoardTileDragListener {
+        /** Whether the tile at (row, col) is still draggable (i.e. part of this turn's move, not yet submitted). */
+        boolean isMovable(int row, int col);
+        /** Fired when a movable tile is dropped on a different, empty board cell. */
+        void onBoardTileMoved(int fromRow, int fromCol, int toRow, int toCol);
+        /** Fired when a movable tile is dropped somewhere that isn't a board cell (i.e. sent back to the rack). */
+        void onBoardTileReturnedToRack(int fromRow, int fromCol);
+    }
+
+    public void setDragListener(BoardTileDragListener dragListener) {
+        this.dragListener = dragListener;
+    }
 
     public void initGrid(ActionListener listener, Container container, BoardCell[][] refBoard) {
         this.container = container;
@@ -65,8 +86,101 @@ public class BoardGridComponent {
                     buttons[i][j].setBackground(new Color(204, 204, 204));
                 }
                 container.add(buttons[i][j]);
+                makeBoardTileDraggable(buttons[i][j], i, j);
             }
         }
+    }
+
+    /**
+     * Manual glass-pane drag for a board tile, mirroring TileRackComponent's
+     * approach. Only fires if dragListener says the cell is currently
+     * movable (i.e. placed this turn, not yet committed). On release:
+     *  - over a different empty board cell -> onBoardTileMoved
+     *  - over the same cell it started on  -> no-op (icon already restored)
+     *  - anywhere else                     -> onBoardTileReturnedToRack
+     * The button's own icon/background are restored immediately on release
+     * regardless of outcome; Panel overrides both endpoints' visuals itself
+     * if the listener actually accepts the move/return.
+     */
+    private void makeBoardTileDraggable(JButton button, int row, int col) {
+        MouseAdapter dragAdapter = new MouseAdapter() {
+            private ImageIcon originalIcon;
+            private Color originalBackground;
+            private boolean dragging = false;
+            private JLabel dragLabel;
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (dragListener == null || button.getIcon() == null || !dragListener.isMovable(row, col)) return;
+
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+                if (rootPane == null) return;
+
+                dragging = true;
+                originalIcon = (ImageIcon) button.getIcon();
+                originalBackground = button.getBackground();
+
+                JComponent glass = (JComponent) rootPane.getGlassPane();
+                glass.setLayout(null);
+
+                dragLabel = new JLabel(originalIcon);
+                dragLabel.setSize(button.getWidth(), button.getHeight());
+                Point startInGlass = SwingUtilities.convertPoint(button, e.getPoint(), glass);
+                dragLabel.setLocation(startInGlass.x - dragLabel.getWidth() / 2, startInGlass.y - dragLabel.getHeight() / 2);
+                glass.add(dragLabel);
+                glass.setVisible(true);
+
+                button.setIcon(null);
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (!dragging || dragLabel == null) return;
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+                if (rootPane == null) return;
+                JComponent glass = (JComponent) rootPane.getGlassPane();
+                Point p = SwingUtilities.convertPoint(button, e.getPoint(), glass);
+                dragLabel.setLocation(p.x - dragLabel.getWidth() / 2, p.y - dragLabel.getHeight() / 2);
+                glass.repaint();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (!dragging) return;
+                dragging = false;
+
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+                int[] cell = null;
+                if (rootPane != null && container != null) {
+                    Point pointInContainer = SwingUtilities.convertPoint(button, e.getPoint(), container);
+                    cell = getCellAt(pointInContainer);
+                }
+
+                if (rootPane != null && dragLabel != null) {
+                    JComponent glass = (JComponent) rootPane.getGlassPane();
+                    glass.remove(dragLabel);
+                    glass.setVisible(false);
+                    glass.repaint();
+                }
+                dragLabel = null;
+
+                // Restore this cell's look by default; Panel overrides both
+                // endpoints' visuals if the move/return is actually accepted.
+                button.setIcon(originalIcon);
+                button.setBackground(originalBackground);
+
+                if (dragListener == null) return;
+
+                if (cell == null) {
+                    dragListener.onBoardTileReturnedToRack(row, col);
+                } else if (cell[0] != row || cell[1] != col) {
+                    dragListener.onBoardTileMoved(row, col, cell[0], cell[1]);
+                }
+                // else: dropped back on the same cell -- nothing to do.
+            }
+        };
+        button.addMouseListener(dragAdapter);
+        button.addMouseMotionListener(dragAdapter);
     }
 
     /**
@@ -157,48 +271,51 @@ public class BoardGridComponent {
 
     public void resetTiles(ArrayList<int[]> tempPositions, BoardCell[][] refBoard) {
         for (int i = 0; i < tempPositions.size(); i++) {
-            int x = tempPositions.get(i)[0];
-            int y = tempPositions.get(i)[1];
-            if (x == 7 && y == 7) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Star.png");
-                Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                buttons[x][y].setIcon(icon);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(255, 255, 255));
-            } else if (refBoard[x][y].speciality == 1) {
-                ImageIcon icon = new ImageIcon("resources/imgs/DL.png");
-                Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                buttons[x][y].setIcon(icon);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(0, 104, 102));
-            } else if (refBoard[x][y].speciality == 2) {
-                ImageIcon icon = new ImageIcon("resources/imgs/TL.png");
-                Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                buttons[x][y].setIcon(icon);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(238, 215, 161));
-            } else if (refBoard[x][y].speciality == 3) {
-                ImageIcon icon = new ImageIcon("resources/imgs/DW.png");
-                Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                buttons[x][y].setIcon(icon);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(161, 207, 203));
-            } else if (refBoard[x][y].speciality == 4) {
-                ImageIcon icon = new ImageIcon("resources/imgs/TW.png");
-                Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                buttons[x][y].setIcon(icon);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(255, 155, 155));
-            } else {
-                buttons[x][y].setIcon(null);
-                buttons[x][y].setBorder(new RoundedButton(10));
-                buttons[x][y].setBackground(new Color(204, 204, 204));
-            }
+            resetSingleTile(tempPositions.get(i)[0], tempPositions.get(i)[1], refBoard);
+        }
+    }
+
+    /** Restores one cell's default appearance (icon/border/background) based on its board speciality. */
+    public void resetSingleTile(int x, int y, BoardCell[][] refBoard) {
+        if (x == 7 && y == 7) {
+            ImageIcon icon = new ImageIcon("resources/imgs/Star.png");
+            Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            buttons[x][y].setIcon(icon);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(255, 255, 255));
+        } else if (refBoard[x][y].speciality == 1) {
+            ImageIcon icon = new ImageIcon("resources/imgs/DL.png");
+            Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            buttons[x][y].setIcon(icon);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(0, 104, 102));
+        } else if (refBoard[x][y].speciality == 2) {
+            ImageIcon icon = new ImageIcon("resources/imgs/TL.png");
+            Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            buttons[x][y].setIcon(icon);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(238, 215, 161));
+        } else if (refBoard[x][y].speciality == 3) {
+            ImageIcon icon = new ImageIcon("resources/imgs/DW.png");
+            Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            buttons[x][y].setIcon(icon);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(161, 207, 203));
+        } else if (refBoard[x][y].speciality == 4) {
+            ImageIcon icon = new ImageIcon("resources/imgs/TW.png");
+            Image image = icon.getImage().getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            buttons[x][y].setIcon(icon);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(255, 155, 155));
+        } else {
+            buttons[x][y].setIcon(null);
+            buttons[x][y].setBorder(new RoundedButton(10));
+            buttons[x][y].setBackground(new Color(204, 204, 204));
         }
     }
 
