@@ -77,17 +77,8 @@ public class Panel extends JPanel implements ActionListener {
         this.isAIAnimating = animating;
     }
 
-    public void recomputeWordSpans() {
-        computeStructuralIssues();
-        cachedWordSpans = computeWordSpans();
-        if (ringOverlay != null) {
-            ringOverlay.repaint();
-        }
-    }
-
     // Structural validity of this turn's not-yet-submitted placement (temp_positions):
     // are all the tiles placed this turn on one line, with no unfilled gaps?
-    // This is deliberately separate from dictionary word-correctness.
     private boolean structurallyValid = true;
     private java.util.List<int[]> cachedMisalignedCells = new ArrayList<>();
     private java.util.List<int[]> cachedGapCells = new ArrayList<>();
@@ -96,13 +87,7 @@ public class Panel extends JPanel implements ActionListener {
      * Checks whether this turn's placed tiles form a structurally legal
      * Scrabble placement: all in a single row or a single column, with no
      * empty gap between them (a gap is fine only if an already-committed
-     * board tile fills it). This says nothing about whether the letters
-     * spell a real word - that's wordValidator's job in computeWordSpans().
-     * Without this check, computeWordSpans() would happily draw a "valid"
-     * green rectangle around any run that happens to spell a real word,
-     * even if the tiles making it up aren't actually connected the way the
-     * player thinks (e.g. two disconnected pairs of tiles that each,
-     * independently, sit next to a real word).
+     * board tile fills it).
      */
     private void computeStructuralIssues() {
         cachedMisalignedCells = new ArrayList<>();
@@ -120,10 +105,7 @@ public class Panel extends JPanel implements ActionListener {
         }
 
         if (!rLock && !cLock) {
-            // Tiles aren't even on one line. Flag whichever tiles are the
-            // minority against the row/column that most of them share.
             structurallyValid = false;
-
             Map<Integer, Integer> rowCounts = new HashMap<>();
             Map<Integer, Integer> colCounts = new HashMap<>();
             for (int[] p : temp_positions) {
@@ -148,8 +130,7 @@ public class Panel extends JPanel implements ActionListener {
             return;
         }
 
-        // All on one line - check for gaps between the placed tiles that
-        // aren't already filled by an existing (previously committed) tile.
+        // All on one line - check for gaps
         if (rLock) {
             int cMin = c0, cMax = c0;
             for (int[] p : temp_positions) { cMin = Math.min(cMin, p[1]); cMax = Math.max(cMax, p[1]); }
@@ -171,9 +152,51 @@ public class Panel extends JPanel implements ActionListener {
         if (!cachedGapCells.isEmpty()) structurallyValid = false;
     }
 
-    /** Draws markers over cells that break the structural line: a solid red box
-     *  around placed tiles that are off the shared row/column, and a dashed red
-     *  box over empty cells that leave a gap in an otherwise straight line. */
+    /**
+     * Checks if a cell is adjacent to any existing occupied tile on the board.
+     * For the first move, the center square (7,7) is considered "connected".
+     */
+    private boolean isCellAdjacentToExistingTile(int row, int col) {
+        if (board.isEmpty()) {
+            return row == 7 && col == 7;
+        }
+        if (ref_board[row][col].isOccupied) {
+            return true;
+        }
+        int[][] directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        for (int[] dir : directions) {
+            int newRow = row + dir[0];
+            int newCol = col + dir[1];
+            if (newRow >= 0 && newRow < 15 && newCol >= 0 && newCol < 15) {
+                if (ref_board[newRow][newCol].isOccupied) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a word span is connected to existing tiles.
+     */
+    private boolean isSpanConnected(int r1, int c1, int r2, int c2) {
+        if (r1 == r2) {
+            for (int c = c1; c <= c2; c++) {
+                if (isCellAdjacentToExistingTile(r1, c)) {
+                    return true;
+                }
+            }
+        } else {
+            for (int r = r1; r <= r2; r++) {
+                if (isCellAdjacentToExistingTile(r, c1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Draws markers over cells that break the structural line */
     private void drawStructuralWarnings(Graphics2D g) {
         if (cachedMisalignedCells.isEmpty() && cachedGapCells.isEmpty()) return;
 
@@ -217,14 +240,16 @@ public class Panel extends JPanel implements ActionListener {
         final int r1, c1, r2, c2;
         final String word;
         final boolean valid;
+        final boolean connected;
 
-        WordSpan(int r1, int c1, int r2, int c2, String word, boolean valid) {
+        WordSpan(int r1, int c1, int r2, int c2, String word, boolean valid, boolean connected) {
             this.r1 = r1;
             this.c1 = c1;
             this.r2 = r2;
             this.c2 = c2;
             this.word = word;
             this.valid = valid;
+            this.connected = connected;
         }
     }
 
@@ -316,6 +341,14 @@ public class Panel extends JPanel implements ActionListener {
         remainingTilesComponent.drawRemaining(graphics2D, 680, 300, tileBag.getRemaining());
     }
 
+    public void recomputeWordSpans() {
+        computeStructuralIssues();
+        cachedWordSpans = computeWordSpans();
+        if (ringOverlay != null) {
+            ringOverlay.repaint();
+        }
+    }
+
     private void drawWordRings(Graphics2D g) {
         if (cachedWordSpans.isEmpty()) return;
 
@@ -334,7 +367,10 @@ public class Panel extends JPanel implements ActionListener {
             int w = (end.x + end.width) - start.x + margin * 2;
             int h = (end.y + end.height) - start.y + margin * 2;
 
-            g.setColor(span.valid ? new Color(0, 170, 0) : new Color(220, 50, 50));
+            // Green: valid word AND connected to existing tiles AND structurally valid
+            // Red: invalid word OR isolated (not connected) OR structurally invalid
+            boolean isValidWord = span.valid && structurallyValid && span.connected;
+            g.setColor(isValidWord ? new Color(0, 170, 0) : new Color(220, 50, 50));
             g.drawRoundRect(x, y, w, h, arc, arc);
         }
 
@@ -375,7 +411,9 @@ public class Panel extends JPanel implements ActionListener {
                     StringBuilder sb = new StringBuilder();
                     for (int cc = c1; cc <= c2; cc++) sb.append(grid[r][cc]);
                     String word = sb.toString();
-                    spans.add(new WordSpan(r, c1, r, c2, word, structurallyValid && wordValidator.isValid(word)));
+                    boolean valid = wordValidator.isValid(word);
+                    boolean connected = isSpanConnected(r, c1, r, c2);
+                    spans.add(new WordSpan(r, c1, r, c2, word, valid, connected));
                 }
             }
 
@@ -388,7 +426,9 @@ public class Panel extends JPanel implements ActionListener {
                     StringBuilder sb = new StringBuilder();
                     for (int rr = r1; rr <= r2; rr++) sb.append(grid[rr][c]);
                     String word = sb.toString();
-                    spans.add(new WordSpan(r1, c, r2, c, word, structurallyValid && wordValidator.isValid(word)));
+                    boolean valid = wordValidator.isValid(word);
+                    boolean connected = isSpanConnected(r1, c, r2, c);
+                    spans.add(new WordSpan(r1, c, r2, c, word, valid, connected));
                 }
             }
         }
@@ -461,6 +501,22 @@ public class Panel extends JPanel implements ActionListener {
         JButton[] options = actionToolbarComponent.getOptionsButtons();
         if (e.getSource() == options[0] && !swap_active) { // Submit
             if (!gameEnd && !isAIAnimating) {
+                // Check if there's at least one valid connected word
+                boolean hasValidConnectedWord = false;
+                for (WordSpan span : cachedWordSpans) {
+                    if (span.valid && span.connected && structurallyValid) {
+                        hasValidConnectedWord = true;
+                        break;
+                    }
+                }
+
+                if (!hasValidConnectedWord && !board.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, 
+                        "Your tiles must form at least one valid word connected to existing tiles!", 
+                        "Invalid Move", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
                 ArrayList<Integer> pos = new ArrayList<>();
                 for (int i = 0; i < temp_positions.size(); i++) {
                     pos.add((temp_positions.get(i)[0] * 15) + temp_positions.get(i)[1] + 1);
@@ -495,28 +551,16 @@ public class Panel extends JPanel implements ActionListener {
             else board.setAiRack(tileBag.getRack_player_2());
 
             if (!gameEnd) {
-                // Run AI calculations
                 board.AI_TEST();
                 board.transAI_TEST();
                 board.AI.writeToFile();
                 board.readData("game_results/horiMoves.txt", true);
                 board.readData("game_results/vertiMoves.txt", false);
                 
-                // Get the AI move data
                 if (board.potentialMove != null) {
                     isAIAnimating = true;
                     
-                    // NOTE: board.potentialMove.tiles/positions describe the FULL formed
-                    // word, which includes any letters that were already sitting on the
-                    // board from earlier turns (TheAI.extendRight folds existing board
-                    // letters straight into the candidate word/position list). Only the
-                    // cells that are still empty are actually being placed by the AI this
-                    // turn - the rest are pre-existing tiles it built on top of. If we
-                    // hand the whole span to the animator/placeWord(), placeWord()'s
-                    // occupancy check will reject the move (it's already occupied) and
-                    // the "AI move" ends up flying tiles onto squares that are already
-                    // filled, then silently reverting - which looks like the AI making a
-                    // wrong/illegal move. So we filter down to just the new cells here.
+                    // Filter down to just the new cells (not already occupied)
                     ArrayList<Tile> tiles = new ArrayList<>();
                     ArrayList<int[]> positions = new ArrayList<>();
                     for (int i = 0; i < board.potentialMove.positions.size(); i++) {
@@ -528,14 +572,11 @@ public class Panel extends JPanel implements ActionListener {
                         }
                     }
                     
-                    // Clear temp positions and selected tiles
                     temp_positions.clear();
                     tiles_selected_from_rack.clear();
                     
-                    // Start animation
                     aiAnimator.animateAIMove(tiles, positions, player);
                 } else {
-                    // No valid AI move, just pass turn
                     board.stuff += "AI: No valid move found\n";
                     change_turn();
                     refresh();
@@ -618,16 +659,16 @@ public class Panel extends JPanel implements ActionListener {
 
     private void tile_setter(int i) {
         if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
-            if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
+            int row = current_tile_selected.get(0);
+            int col = current_tile_selected.get(1);
+
+            if (!isCellAvailable(row, col)) {
                 current_tile_selected.clear();
                 current_letter_selected = null;
                 return;
             }
 
-            JButton targetButton = boardGridComponent.getButton(
-                current_tile_selected.get(0), 
-                current_tile_selected.get(1)
-            );
+            JButton targetButton = boardGridComponent.getButton(row, col);
             
             ImageIcon icon = new ImageIcon("resources/imgs/" + 
                 String.valueOf(current_letter_selected.letter).toUpperCase() + ".png");
@@ -645,8 +686,8 @@ public class Panel extends JPanel implements ActionListener {
             
             tileRackComponent.rearrange(player, tiles_present_player1, tiles_present_player2);
             
-            int[] rc = {current_tile_selected.get(0), current_tile_selected.get(1)};
-            if (!boardGridComponent.isSpecialTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
+            int[] rc = {row, col};
+            if (!boardGridComponent.isSpecialTile(ref_board, row, col)) {
                 targetButton.setBackground(new Color(242, 191, 118));
             }
             temp_positions.add(rc);
@@ -698,6 +739,8 @@ public class Panel extends JPanel implements ActionListener {
             return;
         }
 
+        // Allow placement anywhere - no adjacency restriction during drag
+
         ArrayList<Tile> rack = (dropPlayer == 1) ? tiles_present_player1 : tiles_present_player2;
         if (tileIndex < 0 || tileIndex >= rack.size()) {
             return;
@@ -737,6 +780,8 @@ public class Panel extends JPanel implements ActionListener {
             JOptionPane.showMessageDialog(this, "This square is already occupied!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
             return;
         }
+
+        // Allow movement anywhere - no adjacency restriction
 
         Tile tile = tiles_selected_from_rack.get(idx);
 
