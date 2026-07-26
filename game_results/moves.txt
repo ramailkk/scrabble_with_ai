@@ -1,4 +1,27 @@
 PLAYER: 1
-TWIG
-SCORE ON THE MOVE: 16
+FINE
+SCORE ON THE MOVE: 14
+----------------
+PLAYER: 2
+SANE
+FINES
+SCORE ON THE MOVE: 13
+----------------
+PLAYER: 1
+EXIT
+NE
+EX
+SCORE ON THE MOVE: 33
+----------------
+PLAYER: 2
+SIRE
+SANES
+SCORE ON THE MOVE: 15
+----------------
+PLAYER: 1
+YBORE
+NEB
+EXO
+TE
+SCORE ON THE MOVE: 30
 ----------------

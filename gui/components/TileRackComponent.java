@@ -183,12 +183,8 @@ public class TileRackComponent {
         }
     }
 
-    public void layoutPlayer1(Graphics2D g, int x_p, int y_p, int width, int height, int player, int score1) {
-        g.drawString("Player 1", x_p + 100, y_p - 10);
-        if (player == 1)
-            g.drawString("(Your turn)", x_p + 180, y_p - 10);
+    public void layoutPlayer1(Graphics2D g, int x_p, int y_p, int width, int height, int player) {
         shuffle[0].setBounds(x_p - 50, y_p, 40, 40);
-        g.drawString("Score = " + String.valueOf(score1), x_p + 300, y_p + width / 2 + 10);
         int x = x_p;
         for (int i = 0; i < tile_rack_player_1.length; i++) {
             tile_rack_player_1[i].setBounds(x, y_p, width, height);
@@ -196,12 +192,8 @@ public class TileRackComponent {
         }
     }
 
-    public void layoutPlayer2(Graphics2D g, int x_p, int y_p, int width, int height, int player, int score2) {
-        g.drawString("Player 2", x_p + 100, y_p - 10);
+    public void layoutPlayer2(Graphics2D g, int x_p, int y_p, int width, int height, int player) {
         shuffle[1].setBounds(x_p - 50, y_p, 40, 40);
-        if (player == 2)
-            g.drawString("(Your turn)", x_p + 180, y_p - 10);
-        g.drawString("Score = " + String.valueOf(score2), x_p + 300, y_p + width / 2 + 10);
         int x = x_p;
         for (int i = 0; i < tile_rack_player_2.length; i++) {
             tile_rack_player_2[i].setBounds(x, y_p, width, height);

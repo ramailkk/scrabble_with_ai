@@ -8,6 +8,7 @@ import gui.components.ActionToolbarComponent;
 import gui.components.BoardGridComponent;
 import gui.components.RemainingTilesComponent;
 import gui.components.TileRackComponent;
+import gui.components.ScoreComponent;  // Add this import
 
 import javax.swing.*;
 import java.awt.*;
@@ -30,6 +31,7 @@ public class Panel extends JPanel implements ActionListener {
     private TileRackComponent tileRackComponent = new TileRackComponent();
     private ActionToolbarComponent actionToolbarComponent = new ActionToolbarComponent();
     private RemainingTilesComponent remainingTilesComponent = new RemainingTilesComponent();
+    private ScoreComponent scoreComponent;  // Add this
 
     private ArrayList<Tile> tiles_present_player1;
     private ArrayList<Tile> tiles_present_player2;
@@ -83,6 +85,10 @@ public class Panel extends JPanel implements ActionListener {
         tiles_present_player1 = tileBag.getRack_player_1();
         tiles_present_player2 = tileBag.getRack_player_2();
         swap_panel.setPanel(this);
+        
+        // Initialize the score component
+        scoreComponent = new ScoreComponent(board, ref_board);
+        
         initBoard();
         coalescedRepaintTimer = new javax.swing.Timer(16, e -> {
         if (needsRepaint) {
@@ -111,8 +117,15 @@ public class Panel extends JPanel implements ActionListener {
         Graphics2D graphics2D = (Graphics2D) g;
         graphics2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         boardGridComponent.layoutGrid(graphics2D, 50, 50, 40, 40);
-        tileRackComponent.layoutPlayer1(graphics2D, 720, 50, 40, 40, player, Player_score_1);
-        tileRackComponent.layoutPlayer2(graphics2D, 720, 500, 40, 40, player, Player_score_2);
+        
+        // Update score component with current temp data
+        scoreComponent.setTempData(temp_positions, tiles_selected_from_rack);
+        // Draw scores using the score component
+        scoreComponent.drawScores(graphics2D, Player_score_1, Player_score_2, player);
+        
+        tileRackComponent.layoutPlayer1(graphics2D, 720, 50, 40, 40, player);
+        tileRackComponent.layoutPlayer2(graphics2D, 720, 500, 40, 40, player);
+        
         actionToolbarComponent.layoutToolbar(680, 600, 100, 100);
         remainingTilesComponent.drawRemaining(graphics2D, 680, 250, tileBag.getRemaining());
         drawWordRings(graphics2D);
@@ -487,6 +500,7 @@ public class Panel extends JPanel implements ActionListener {
         
         // Repaint only the affected areas
         targetButton.repaint();
+        refresh();
     }
 }
 
@@ -504,14 +518,12 @@ public class Panel extends JPanel implements ActionListener {
         temp_positions.clear();
         tile_rack_rearrange();
         tiles_selected_from_rack.clear();
-        repaint();
+        refresh();
     }
 
     public void refresh() {
          needsRepaint = true;
         coalescedRepaintTimer.restart();
-    // Only repaint specific components if possible
-    // repaint(); // Remove this - let the timer handle it
     }
 
     public void change_turn() {
@@ -540,6 +552,7 @@ public class Panel extends JPanel implements ActionListener {
     public ArrayList<Tile> getTiles_present_player2() {
         return tiles_present_player2;
     }
+    
 
     /**
      * Called directly (no polling) by TileRackComponent when a rack tile is
