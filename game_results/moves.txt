@@ -1,27 +1,142 @@
 PLAYER: 1
-FINE
-SCORE ON THE MOVE: 14
+GEL
+SCORE ON THE MOVE: 8
 ----------------
 PLAYER: 2
-SANE
-FINES
-SCORE ON THE MOVE: 13
+DOGE
+GELD
+SCORE ON THE MOVE: 18
 ----------------
 PLAYER: 1
-EXIT
-NE
-EX
+WILCO
+OW
+GI
+EL
+SCORE ON THE MOVE: 30
+----------------
+PLAYER: 1
+CANON
+SCORE ON THE MOVE: 20
+----------------
+PLAYER: 2
+HOLK
+KOW
+SCORE ON THE MOVE: 29
+----------------
+PLAYER: 1
+TEAM
+HM
+SCORE ON THE MOVE: 19
+----------------
+PLAYER: 2
+GOFFED
+SCORE ON THE MOVE: 30
+----------------
+PLAYER: 1
+SAUNA
+GU
+ON
+FA
+SCORE ON THE MOVE: 20
+----------------
+PLAYER: 2
+VOLTE
+ES
+SCORE ON THE MOVE: 26
+----------------
+PLAYER: 1
+VIRTU
+SCORE ON THE MOVE: 24
+----------------
+PLAYER: 2
+QI
+GI
+SCORE ON THE MOVE: 24
+----------------
+PLAYER: 1
+LAYIN
+QI
+GIN
+SCORE ON THE MOVE: 31
+----------------
+PLAYER: 2
+PROBE
+LO
+AB
+YE
+SCORE ON THE MOVE: 29
+----------------
+PLAYER: 1
+HEAPIER
+UH
 SCORE ON THE MOVE: 33
 ----------------
 PLAYER: 2
-SIRE
-SANES
+DAUTIES
+STEAM
+SCORE ON THE MOVE: 69
+----------------
+PLAYER: 1
+WAZ
+LOW
+ABA
+YEZ
+SCORE ON THE MOVE: 56
+----------------
+PLAYER: 2
+EXO
+ET
+XI
+OE
+SCORE ON THE MOVE: 43
+----------------
+PLAYER: 1
+RYNDS
+CANONS
+SCORE ON THE MOVE: 25
+----------------
+PLAYER: 2
+QIS
+PROBES
+SCORE ON THE MOVE: 22
+----------------
+PLAYER: 1
+EDEMA
+TE
+AE
+HMM
+SCORE ON THE MOVE: 22
+----------------
+PLAYER: 2
+AJI
+SCORE ON THE MOVE: 26
+----------------
+PLAYER: 1
+BOTONE
+IN
+RE
+SCORE ON THE MOVE: 23
+----------------
+PLAYER: 2
+TRAP
+TEL
 SCORE ON THE MOVE: 15
 ----------------
 PLAYER: 1
-YBORE
-NEB
-EXO
-TE
-SCORE ON THE MOVE: 30
+REV
+SCORE ON THE MOVE: 6
 ----------------
+PLAYER: 2
+CUD
+UN
+SCORE ON THE MOVE: 8
+----------------
+PLAYER: 1
+ER
+SCORE ON THE MOVE: 4
+----------------
+GAME ENDED
+----------
+FINAL SCORE: 
+Player1: 323
+Player2: 339

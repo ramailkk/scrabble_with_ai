@@ -15,6 +15,16 @@ public class ScoreComponent {
     private java.util.List<int[]> tempPositions;
     private java.util.List<Tile> tilesSelectedFromRack;
 
+    private static final Font PLAYER_NAME_FONT = new Font("Segoe UI", Font.BOLD, 16);
+    private static final Font SCORE_FONT = new Font("Segoe UI", Font.BOLD, 32);
+    private static final Font POTENTIAL_SCORE_FONT = new Font("Segoe UI", Font.BOLD, 20);
+
+    private static final Color PANEL_BG = new Color(245, 242, 235);
+    private static final Color PANEL_BORDER = new Color(200, 190, 180);
+    private static final Color SCORE_COLOR = new Color(40, 40, 40);
+    private static final Color TURN_BORDER_COLOR = new Color(46, 204, 113);
+    private static final Color POTENTIAL_COLOR = new Color(46, 204, 113);
+
     public ScoreComponent(Board board, BoardCell[][] refBoard) {
         this.board = board;
         this.refBoard = refBoard;
@@ -22,25 +32,17 @@ public class ScoreComponent {
         this.tilesSelectedFromRack = new ArrayList<>();
     }
 
-    /**
-     * Updates the temporary positions and tiles references for score calculation
-     */
     public void setTempData(java.util.List<int[]> tempPositions, java.util.List<Tile> tilesSelectedFromRack) {
         this.tempPositions = tempPositions;
         this.tilesSelectedFromRack = tilesSelectedFromRack;
     }
 
-    /**
-     * Calculates the potential score of the current move being built.
-     * Uses the same scoring logic as the Board's phantomScorer method.
-     */
     private int calculatePotentialScore() {
         if (tempPositions == null || tempPositions.isEmpty() || 
             tilesSelectedFromRack == null || tilesSelectedFromRack.isEmpty()) {
             return 0;
         }
         
-        // Create a temporary board with the current placements
         BoardCell[][] tempBoard = new BoardCell[15][15];
         for (int r = 0; r < 15; r++) {
             for (int c = 0; c < 15; c++) {
@@ -52,24 +54,20 @@ public class ScoreComponent {
             }
         }
         
-        // Place temporary tiles
         for (int i = 0; i < tempPositions.size(); i++) {
             int r = tempPositions.get(i)[0];
             int c = tempPositions.get(i)[1];
             tempBoard[r][c].setTileOnCell(tilesSelectedFromRack.get(i));
         }
         
-        // Find all words formed
         ArrayList<ArrayList<Integer>> allWordsOnTheMove = new ArrayList<>();
         ArrayList<String> allWordStrings = new ArrayList<>();
         Set<String> seenWords = new HashSet<>();
         
-        // For each placed tile, find horizontal and vertical words
         for (int[] pos : tempPositions) {
             int r = pos[0];
             int c = pos[1];
             
-            // Check horizontal word
             int cStart = c, cEnd = c;
             while (cStart - 1 >= 0 && tempBoard[r][cStart - 1].isOccupied) cStart--;
             while (cEnd + 1 <= 14 && tempBoard[r][cEnd + 1].isOccupied) cEnd++;
@@ -88,7 +86,6 @@ public class ScoreComponent {
                 }
             }
             
-            // Check vertical word
             int rStart = r, rEnd = r;
             while (rStart - 1 >= 0 && tempBoard[rStart - 1][c].isOccupied) rStart--;
             while (rEnd + 1 <= 14 && tempBoard[rEnd + 1][c].isOccupied) rEnd++;
@@ -108,12 +105,10 @@ public class ScoreComponent {
             }
         }
         
-        // If no valid words formed, return 0
         if (allWordsOnTheMove.isEmpty()) {
             return 0;
         }
         
-        // Calculate score using the same logic as Board.phantomScorer
         ArrayList<ArrayList<Tile>> wordsTile = new ArrayList<>();
         for (String w : allWordStrings) {
             ArrayList<Tile> wT = new ArrayList<>();
@@ -148,25 +143,24 @@ public class ScoreComponent {
                 int c = board.decryptPosition(pos)[1];
                 int tileValue = wordsTile.get(i).get(j).value;
                 
-                // Calculate letter score with bonuses
                 int letterScore = tileValue;
                 
-                if (tempBoard[r][c].speciality == 1) { // Double Letter
+                if (tempBoard[r][c].speciality == 1) {
                     if (!spVisited[r][c]) {
                         letterScore = tileValue * 2;
                         spVisited[r][c] = true;
                     }
-                } else if (tempBoard[r][c].speciality == 2) { // Triple Letter
+                } else if (tempBoard[r][c].speciality == 2) {
                     if (!spVisited[r][c]) {
                         letterScore = tileValue * 3;
                         spVisited[r][c] = true;
                     }
-                } else if (tempBoard[r][c].speciality == 3) { // Double Word
+                } else if (tempBoard[r][c].speciality == 3) {
                     if (!spVisited[r][c]) {
                         dw = true;
                         spVisited[r][c] = true;
                     }
-                } else if (tempBoard[r][c].speciality == 4) { // Triple Word
+                } else if (tempBoard[r][c].speciality == 4) {
                     if (!spVisited[r][c]) {
                         tw = true;
                         spVisited[r][c] = true;
@@ -176,7 +170,6 @@ public class ScoreComponent {
                 wordScore += letterScore;
             }
             
-            // Apply word multipliers
             if (tw) wordScore *= 3;
             if (dw) wordScore *= 2;
             
@@ -187,80 +180,82 @@ public class ScoreComponent {
         return score;
     }
 
-    /**
-     * Draws the score display for a player
-     */
-    public void drawScore(Graphics2D g, int x, int y, int currentScore, int player, boolean isCurrentTurn) {
+    public void drawScores(Graphics2D g, int player1Score, int player2Score, int currentPlayer) {
+        int panelWidth = 200;
+        int panelHeight = 75;
+        int gap = 20;
+        int startX = 720;
+        int y = 15;
+        
+        // Draw Player 1 (left)
+        drawPlayerScore(g, startX, y, panelWidth, panelHeight, 
+                       "Player 1", player1Score, currentPlayer == 1);
+        
+        // Draw Player 2 (right)
+        drawPlayerScore(g, startX + panelWidth + gap, y, panelWidth, panelHeight,
+                       "Player 2", player2Score, currentPlayer == 2);
+    }
+
+    private void drawPlayerScore(Graphics2D g, int x, int y, int width, int height, 
+                                  String playerName, int score, boolean isCurrentTurn) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Shadow
+        g.setColor(new Color(0, 0, 0, 25));
+        g.fillRoundRect(x + 3, y + 3, width, height, 12, 12);
+        
+        // Main panel background
+        g.setColor(PANEL_BG);
+        g.fillRoundRect(x, y, width, height, 12, 12);
+        
+        // Border - green if current turn, gray otherwise
+        if (isCurrentTurn) {
+            g.setColor(TURN_BORDER_COLOR);
+            g.setStroke(new BasicStroke(3f));
+        } else {
+            g.setColor(PANEL_BORDER);
+            g.setStroke(new BasicStroke(1.5f));
+        }
+        g.drawRoundRect(x, y, width, height, 12, 12);
+        
+        int padding = 15;
+        int textX = x + padding;
+        
+        // Player name
+        g.setFont(PLAYER_NAME_FONT);
+        g.setColor(Color.BLACK);
+        g.drawString(playerName, textX, y + 26);
+        
+        // Score - large and bold
         int potentialScore = calculatePotentialScore();
         
-        // Draw player label and turn indicator
-        g.setColor(Color.BLACK);
-        Font originalFont = g.getFont();
-        g.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        
-        // Player name and turn indicator on the left side
-        String playerText = "Player " + player;
-        g.drawString(playerText, x, y+8);
-        
-        if (isCurrentTurn) {
-            g.setColor(new Color(0, 150, 0));
-            g.setFont(new Font("Segoe UI", Font.BOLD, 32));
-            g.drawString("Your turn", x + 100, y);
-            g.setColor(Color.BLACK);
-        }
-        
-        // Score on the right side with proper spacing
-        int fontSize = 28;
-        g.setFont(new Font("Consolas", Font.BOLD, fontSize));
-        int scoreX = x + 290; // Position score to the right
-        
         if (potentialScore > 0 && isCurrentTurn && !tempPositions.isEmpty()) {
-            // Show: Score = X + Y = Z
-            String scoreText = "Score = " + currentScore;
-            String plusText = " +" + potentialScore;
-            String equalsText = " = " + (currentScore + potentialScore);
+            // Draw base score in gray
+            g.setFont(SCORE_FONT);
+            g.setColor(new Color(150, 150, 150));
+            String baseScore = String.valueOf(score);
+            g.drawString(baseScore, textX, y + 65);
             
-            int currentX = scoreX;
-            int baselineY = y + 45;
+            // Draw "+" and potential in green (closer together)
+            g.setFont(POTENTIAL_SCORE_FONT);
+            g.setColor(POTENTIAL_COLOR);
+            String plusText = "+" + potentialScore;
+            int baseWidth = g.getFontMetrics(SCORE_FONT).stringWidth(baseScore);
+            g.drawString(plusText, textX + baseWidth + 2, y + 62);
             
-            // Draw base score
-            g.setColor(Color.BLACK);
-            g.drawString(scoreText, currentX, baselineY);
-            currentX += g.getFontMetrics().stringWidth(scoreText);
-            
-            // Draw +potential in green
-            g.setColor(new Color(0, 150, 0));
-            g.setFont(new Font("Consolas", Font.BOLD, fontSize));
-            g.drawString(plusText, currentX, baselineY);
-            currentX += g.getFontMetrics().stringWidth(plusText);
-            
-            // Draw equals and total
-            g.setColor(Color.BLACK);
-            g.setFont(new Font("Consolas", Font.BOLD, fontSize));
-            g.drawString(equalsText, currentX, baselineY);
+            // Draw "=" and total
+            g.setFont(SCORE_FONT);
+            g.setColor(SCORE_COLOR);
+            String totalText = "=" + (score + potentialScore);
+            int plusWidth = g.getFontMetrics(POTENTIAL_SCORE_FONT).stringWidth(plusText);
+            g.drawString(totalText, textX + baseWidth + plusWidth + 4, y + 65);
         } else {
-            // Just show the current score
-            g.setColor(Color.BLACK);
-            g.drawString("Score = " + currentScore, scoreX, y + 25);
+            g.setFont(SCORE_FONT);
+            g.setColor(SCORE_COLOR);
+            g.drawString(String.valueOf(score), textX, y + 65);
         }
-        
-        g.setFont(originalFont);
     }
 
-    /**
-     * Draws the score display for both players
-     */
-    public void drawScores(Graphics2D g, int player1Score, int player2Score, int currentPlayer) {
-        // Draw player 1 score (top rack area)
-        drawScore(g, 720, 35, player1Score, 1, currentPlayer == 1);
-        
-        // Draw player 2 score (bottom rack area) - adjusted y position
-        drawScore(g, 720, 485, player2Score, 2, currentPlayer == 2);
-    }
-
-    /**
-     * Returns the current potential score without drawing
-     */
     public int getCurrentPotentialScore() {
         return calculatePotentialScore();
     }

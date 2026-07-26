@@ -8,7 +8,7 @@ import gui.components.ActionToolbarComponent;
 import gui.components.BoardGridComponent;
 import gui.components.RemainingTilesComponent;
 import gui.components.TileRackComponent;
-import gui.components.ScoreComponent;  // Add this import
+import gui.components.ScoreComponent;
 
 import javax.swing.*;
 import java.awt.*;
@@ -25,13 +25,11 @@ public class Panel extends JPanel implements ActionListener {
     private boolean needsRepaint = false;
     
     private javax.swing.Timer coalescedRepaintTimer;
-
-
     private BoardGridComponent boardGridComponent = new BoardGridComponent();
     private TileRackComponent tileRackComponent = new TileRackComponent();
     private ActionToolbarComponent actionToolbarComponent = new ActionToolbarComponent();
     private RemainingTilesComponent remainingTilesComponent = new RemainingTilesComponent();
-    private ScoreComponent scoreComponent;  // Add this
+    private ScoreComponent scoreComponent;
 
     private ArrayList<Tile> tiles_present_player1;
     private ArrayList<Tile> tiles_present_player2;
@@ -47,13 +45,6 @@ public class Panel extends JPanel implements ActionListener {
 
     private boolean gameEnd;
 
-    /**
-     * Pluggable word-validity check, used to color the rings drawn around
-     * words formed by this turn's tile placements. Defaults to the board's
-     * actual dictionary (Board.dictionary is a MyTrie), so this works out
-     * of the box; call setWordValidator(...) if you ever want to swap the
-     * check for something else (e.g. during testing).
-     */
     private WordValidator wordValidator = word -> board.dictionary.validateWord(word);
 
     public interface WordValidator {
@@ -64,9 +55,8 @@ public class Panel extends JPanel implements ActionListener {
         this.wordValidator = wordValidator;
     }
 
-    /** A single word formed on the board, expressed as its cell span. */
     private static class WordSpan {
-        final int r1, c1, r2, c2; // inclusive endpoints; same row (horizontal) or same col (vertical)
+        final int r1, c1, r2, c2;
         final String word;
         final boolean valid;
 
@@ -80,19 +70,7 @@ public class Panel extends JPanel implements ActionListener {
         }
     }
 
-    // Cached so paint doesn't recompute word validity 60x/sec -- only ever
-    // rebuilt when temp_positions/tiles_selected_from_rack actually change
-    // (see recomputeWordSpans()).
     private java.util.List<WordSpan> cachedWordSpans = new ArrayList<>();
-
-    // A small, dedicated always-on-top layer that only draws the cached
-    // rings. Living in its own JLayeredPane layer (rather than being drawn
-    // directly by Panel.paintComponent) means Swing correctly composites it
-    // whenever a board button underneath repaints itself (e.g. on hover) --
-    // ordinary overlapping siblings in a plain JPanel aren't guaranteed
-    // that, but layers in a JLayeredPane are. It only ever redraws the
-    // cached list, so its content never changes just because *something*
-    // triggered a repaint.
     private JLayeredPane boardLayeredPane;
     private JComponent ringOverlay;
 
@@ -101,10 +79,7 @@ public class Panel extends JPanel implements ActionListener {
         tiles_present_player1 = tileBag.getRack_player_1();
         tiles_present_player2 = tileBag.getRack_player_2();
         swap_panel.setPanel(this);
-
-        // Initialize the score component
         scoreComponent = new ScoreComponent(board, ref_board);
-
         initBoard();
         coalescedRepaintTimer = new javax.swing.Timer(16, e -> {
             if (needsRepaint) {
@@ -118,18 +93,12 @@ public class Panel extends JPanel implements ActionListener {
         setBackground(Color.WHITE);
         setPreferredSize(new Dimension(B_WIDTH, B_HEIGHT));
         setFocusable(true);
-        // Without this, JPanel's default FlowLayout would fight our manual
-        // setBounds() calls (e.g. whenever revalidate()/updateComponentTreeUI
-        // runs), which is why bounds used to have to be reasserted on every
-        // single paint. With it, bounds set once simply stick.
         setLayout(null);
 
-        // Board buttons live in their own layered pane so the ring overlay
-        // (added above them, in a higher layer) composites correctly.
         boardLayeredPane = new JLayeredPane();
         boardLayeredPane.setBounds(0, 0, B_WIDTH, B_HEIGHT);
         boardLayeredPane.setOpaque(false);
-        boardLayeredPane.setBackground(Color.WHITE); // RoundedButton blends corners with parent.getBackground()
+        boardLayeredPane.setBackground(Color.WHITE);
         add(boardLayeredPane);
 
         boardGridComponent.initGrid(this, boardLayeredPane, ref_board);
@@ -146,18 +115,14 @@ public class Panel extends JPanel implements ActionListener {
         ringOverlay.setBounds(0, 0, B_WIDTH, B_HEIGHT);
         boardLayeredPane.add(ringOverlay, JLayeredPane.PALETTE_LAYER);
 
-        // Bounds never change mid-game -- set them once instead of on every paint.
         boardGridComponent.layoutBoundsOnce(50, 50, 40, 40);
-        tileRackComponent.layoutPlayer1Once(720, 50, 40, 40);
-        tileRackComponent.layoutPlayer2Once(720, 500, 40, 40);
-        actionToolbarComponent.layoutToolbarOnce(680, 600, 100, 100);
+        tileRackComponent.layoutPlayer1Once(720, 150, 40, 40);
+        tileRackComponent.layoutPlayer2Once(720, 550, 40, 40);
+        actionToolbarComponent.layoutToolbarOnce(450, 610, 1000, 60);
 
-        // Wire up drag-and-drop: rack tiles report drops directly to this panel.
         tileRackComponent.setBoardGridComponent(boardGridComponent);
         tileRackComponent.setDropListener(this::handleTileDrop);
 
-        // Wire up dragging tiles that are already on the board (but only
-        // this turn's not-yet-submitted ones) to another cell or back to the rack.
         boardGridComponent.setDragListener(new BoardGridComponent.BoardTileDragListener() {
             @Override
             public boolean isMovable(int row, int col) {
@@ -183,18 +148,12 @@ public class Panel extends JPanel implements ActionListener {
         graphics2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         boardGridComponent.drawGridLabels(graphics2D, 50, 50, 40, 40);
 
-        // Update score component with current temp data
         scoreComponent.setTempData(temp_positions, tiles_selected_from_rack);
         scoreComponent.drawScores(graphics2D, Player_score_1, Player_score_2, player);
 
-        remainingTilesComponent.drawRemaining(graphics2D, 680, 250, tileBag.getRemaining());
+        remainingTilesComponent.drawRemaining(graphics2D, 680, 300, tileBag.getRemaining());
     }
 
-    /**
-     * Rebuilds the cached word spans from the current temp_positions /
-     * tiles_selected_from_rack and repaints just the ring overlay (not the
-     * whole panel). Call this any time those two collections change.
-     */
     private void recomputeWordSpans() {
         cachedWordSpans = computeWordSpans();
         if (ringOverlay != null) {
@@ -202,14 +161,6 @@ public class Panel extends JPanel implements ActionListener {
         }
     }
 
-    /**
-     * Draws the cached word spans -- green if a valid dictionary word, red
-     * otherwise. This is the ring overlay's paintComponent body: it only
-     * ever draws cachedWordSpans, so repeated/incidental repaints (e.g. a
-     * board button's hover repaint triggering the overlay to redraw for
-     * proper compositing) always render the exact same rings, never fading
-     * or changing them.
-     */
     private void drawWordRings(Graphics2D g) {
         if (cachedWordSpans.isEmpty()) return;
 
@@ -235,15 +186,6 @@ public class Panel extends JPanel implements ActionListener {
         g.setStroke(oldStroke);
     }
 
-    /**
-     * Builds the board+in-progress-move as one combined letter grid, then
-     * for every tile placed this turn walks outward in both directions to
-     * find the horizontal word and the vertical word through it (a tile
-     * can be part of both -- e.g. it extends the main word and also forms
-     * a new cross word with an existing tile). Each distinct span (by
-     * orientation + row/col + start/end) is only reported once, even if
-     * multiple placed tiles belong to the same word.
-     */
     private java.util.List<WordSpan> computeWordSpans() {
         java.util.List<WordSpan> spans = new ArrayList<>();
         if (temp_positions.isEmpty()) return spans;
@@ -343,11 +285,49 @@ public class Panel extends JPanel implements ActionListener {
             }
         }
 
-        JButton[] options = actionToolbarComponent.getOptionsButtons();
-        if (e.getSource() == options[0] && !swap_active) {
+        // Handle Reset buttons from tile rack
+        JButton[] resetButtons = tileRackComponent.getResetButtons();
+        if (e.getSource() == resetButtons[0] || e.getSource() == resetButtons[1]) {
             Reset_Tiles(player);
-            System.out.println("Reset");
-        } else if (e.getSource() == options[1] && !swap_active) {
+        }
+
+        JButton[] shuffles = tileRackComponent.getShuffleButtons();
+        if (e.getSource() == shuffles[0] && player == 1) {
+            Collections.shuffle(tiles_present_player1);
+            tile_rack_rearrange();
+            refresh();
+        } else if (e.getSource() == shuffles[1] && player == 2) {
+            Collections.shuffle(tiles_present_player2);
+            tile_rack_rearrange();
+            refresh();
+        }
+
+        // Handle toolbar buttons: Submit(0), Skip(1), AI(2), Swap(3), Resign(4)
+        JButton[] options = actionToolbarComponent.getOptionsButtons();
+        if (e.getSource() == options[0] && !swap_active) { // Submit
+            if (!gameEnd) {
+                ArrayList<Integer> pos = new ArrayList<>();
+                for (int i = 0; i < temp_positions.size(); i++) {
+                    pos.add((temp_positions.get(i)[0] * 15) + temp_positions.get(i)[1] + 1);
+                }
+
+                if (board.placeWord(tiles_selected_from_rack, pos, player)) {
+                    update_score(player);
+                    tileBag.rack_update(player);
+                    tile_rack_rearrange();
+                    change_turn();
+                    board.writeData();
+                } else {
+                    Reset_Tiles(player);
+                    pos.clear();
+                }
+            }
+        } else if (e.getSource() == options[1] && !swap_active) { // Skip
+            System.out.println("Skip");
+            Reset_Tiles(player);
+            change_turn();
+            refresh();
+        } else if (e.getSource() == options[2] && !swap_active) { // AI
             Reset_Tiles(player);
             System.out.println("AI MOVE");
 
@@ -408,31 +388,7 @@ public class Panel extends JPanel implements ActionListener {
             board.AI.ver_positions.clear();
             tileBag.remaining_tiles();
             change_turn();
-
-        } else if (e.getSource() == options[2] && !swap_active) {
-            System.out.println("Skip");
-            Reset_Tiles(player);
-            change_turn();
-            refresh();
-        } else if (e.getSource() == options[3] && !swap_active) {
-            if (!gameEnd) {
-                ArrayList<Integer> pos = new ArrayList<>();
-                for (int i = 0; i < temp_positions.size(); i++) {
-                    pos.add((temp_positions.get(i)[0] * 15) + temp_positions.get(i)[1] + 1);
-                }
-
-                if (board.placeWord(tiles_selected_from_rack, pos, player)) {
-                    update_score(player);
-                    tileBag.rack_update(player);
-                    tile_rack_rearrange();
-                    change_turn();
-                    board.writeData();
-                } else {
-                    Reset_Tiles(player);
-                    pos.clear();
-                }
-            }
-        } else if (e.getSource() == options[4] && !swap_active) {
+        } else if (e.getSource() == options[3] && !swap_active) { // Swap
             Reset_Tiles(player);
             System.out.println("Swap");
             swap_active = true;
@@ -443,7 +399,7 @@ public class Panel extends JPanel implements ActionListener {
                 swap_panel.setCurrent_selected_array(getTiles_present_player2());
             }
             gui.frames.Swap_Frame swap_frame = new gui.frames.Swap_Frame(swap_panel);
-        } else if (e.getSource() == options[5] && !swap_active) {
+        } else if (e.getSource() == options[4] && !swap_active) { // Resign
             Reset_Tiles(player);
             System.out.println("Resign");
             gameEnd = true;
@@ -478,17 +434,6 @@ public class Panel extends JPanel implements ActionListener {
             tile_rack_rearrange();
             refresh();
         }
-
-        JButton[] shuffles = tileRackComponent.getShuffleButtons();
-        if (e.getSource() == shuffles[0] && player == 1) {
-            Collections.shuffle(tiles_present_player1);
-            tile_rack_rearrange();
-            refresh();
-        } else if (e.getSource() == shuffles[1] && player == 2) {
-            Collections.shuffle(tiles_present_player2);
-            tile_rack_rearrange();
-            refresh();
-        }
     }
 
     public void update_score(int player) {
@@ -510,12 +455,6 @@ public class Panel extends JPanel implements ActionListener {
         }
     }
 
-    /**
-     * True only if the cell is free on the committed board AND isn't
-     * already occupied by a tile placed earlier this same turn (which
-     * boardGridComponent.isFreeTile alone can't see, since temp placements
-     * aren't written into ref_board until the move is submitted).
-     */
     private boolean isCellAvailable(int r, int c) {
         if (!boardGridComponent.isFreeTile(ref_board, r, c)) return false;
         for (int[] pos : temp_positions) {
@@ -525,50 +464,47 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     private void tile_setter(int i) {
-    if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
-        if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
-            current_tile_selected.clear();
+        if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
+            if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
+                current_tile_selected.clear();
+                current_letter_selected = null;
+                return;
+            }
+
+            JButton targetButton = boardGridComponent.getButton(
+                current_tile_selected.get(0), 
+                current_tile_selected.get(1)
+            );
+            
+            ImageIcon icon = new ImageIcon("resources/imgs/" + 
+                String.valueOf(current_letter_selected.letter).toUpperCase() + ".png");
+            Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            targetButton.setIcon(icon);
+
+            if (player == 1) {
+                tiles_present_player1.remove(current_letter_selected);
+                tiles_selected_from_rack.add(current_letter_selected);
+            } else {
+                tiles_present_player2.remove(current_letter_selected);
+                tiles_selected_from_rack.add(current_letter_selected);
+            }
+            
+            tileRackComponent.rearrange(player, tiles_present_player1, tiles_present_player2);
+            
+            int[] rc = {current_tile_selected.get(0), current_tile_selected.get(1)};
+            if (!boardGridComponent.isSpecialTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
+                targetButton.setBackground(new Color(242, 191, 118));
+            }
+            temp_positions.add(rc);
             current_letter_selected = null;
-            return;
-        }
+            current_tile_selected.clear();
+            recomputeWordSpans();
 
-        // Use a local variable for the button to avoid repeated lookups
-        JButton targetButton = boardGridComponent.getButton(
-            current_tile_selected.get(0), 
-            current_tile_selected.get(1)
-        );
-        
-        ImageIcon icon = new ImageIcon("resources/imgs/" + 
-            String.valueOf(current_letter_selected.letter).toUpperCase() + ".png");
-        Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
-        icon = new ImageIcon(image);
-        targetButton.setIcon(icon);
-
-        if (player == 1) {
-            tiles_present_player1.remove(current_letter_selected);
-            tiles_selected_from_rack.add(current_letter_selected);
-        } else {
-            tiles_present_player2.remove(current_letter_selected);
-            tiles_selected_from_rack.add(current_letter_selected);
+            targetButton.repaint();
+            refresh();
         }
-        
-        // Only update rack buttons that changed
-        tileRackComponent.rearrange(player, tiles_present_player1, tiles_present_player2);
-        
-        int[] rc = {current_tile_selected.get(0), current_tile_selected.get(1)};
-        if (!boardGridComponent.isSpecialTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
-            targetButton.setBackground(new Color(242, 191, 118));
-        }
-        temp_positions.add(rc);
-        current_letter_selected = null;
-        current_tile_selected.clear();
-        recomputeWordSpans();
-
-        // Repaint only the affected areas
-        targetButton.repaint();
-        refresh();
     }
-}
 
     public void AI_tileSetter() {
         boardGridComponent.AI_tileSetter(ref_board);
@@ -589,7 +525,7 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     public void refresh() {
-         needsRepaint = true;
+        needsRepaint = true;
         coalescedRepaintTimer.restart();
     }
 
@@ -606,7 +542,6 @@ public class Panel extends JPanel implements ActionListener {
         current_tile_selected.clear();
         recomputeWordSpans();
 
-        // Only repaint if the panel is visible
         if (isVisible()) {
             needsRepaint = true;
             coalescedRepaintTimer.restart();
@@ -620,12 +555,7 @@ public class Panel extends JPanel implements ActionListener {
     public ArrayList<Tile> getTiles_present_player2() {
         return tiles_present_player2;
     }
-    
 
-    /**
-     * Called directly (no polling) by TileRackComponent when a rack tile is
-     * dropped onto a board cell.
-     */
     private void handleTileDrop(int dropPlayer, int tileIndex, int row, int col) {
         if (dropPlayer != this.player) {
             JOptionPane.showMessageDialog(this, "It's not your turn!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
@@ -661,7 +591,6 @@ public class Panel extends JPanel implements ActionListener {
         refresh();
     }
 
-    /** Index into temp_positions/tiles_selected_from_rack for the cell (r, c) this turn, or -1 if it's not one of this turn's placements. */
     private int findTempIndexAt(int r, int c) {
         for (int i = 0; i < temp_positions.size(); i++) {
             if (temp_positions.get(i)[0] == r && temp_positions.get(i)[1] == c) return i;
@@ -669,25 +598,19 @@ public class Panel extends JPanel implements ActionListener {
         return -1;
     }
 
-    /**
-     * Called by BoardGridComponent when a tile placed this turn is dragged
-     * from one board cell to a different, empty one.
-     */
     private void handleBoardTileMoved(int fromRow, int fromCol, int toRow, int toCol) {
         int idx = findTempIndexAt(fromRow, fromCol);
-        if (idx == -1) return; // shouldn't happen; isMovable already gated this
+        if (idx == -1) return;
 
         if (!isCellAvailable(toRow, toCol)) {
             JOptionPane.showMessageDialog(this, "This square is already occupied!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
-            return; // origin cell's icon/background were already restored by BoardGridComponent
+            return;
         }
 
         Tile tile = tiles_selected_from_rack.get(idx);
 
-        // Revert the old cell back to its default board appearance.
         boardGridComponent.resetSingleTile(fromRow, fromCol, ref_board);
 
-        // Paint the tile onto its new cell.
         ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(tile.letter).toUpperCase() + ".png");
         Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
         icon = new ImageIcon(image);
@@ -702,10 +625,6 @@ public class Panel extends JPanel implements ActionListener {
         refresh();
     }
 
-    /**
-     * Called by BoardGridComponent when a tile placed this turn is dragged
-     * off the board entirely -- sends it back to the owning player's rack.
-     */
     private void handleBoardTileReturnedToRack(int fromRow, int fromCol) {
         int idx = findTempIndexAt(fromRow, fromCol);
         if (idx == -1) return;

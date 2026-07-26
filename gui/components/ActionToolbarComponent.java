@@ -5,65 +5,79 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 
 public class ActionToolbarComponent {
-    private JButton[] options_buttons = new JButton[6];
+    private JButton[] options_buttons = new JButton[5];
+    private String[] buttonLabels = {"Submit", "Skip", "AI", "Swap", "Resign"};
+    private Color[] buttonColors = {
+        new Color(144, 238, 144),    // Submit - Green
+        new Color(238, 215, 161),    // Skip - Gold
+        new Color(255, 188, 218),    // AI - Pink
+        new Color(65, 105, 225),     // Swap - Blue
+        new Color(235, 45, 58)       // Resign - Red
+    };
+    private String[] iconPaths = {
+        "resources/imgs/Submit.png",
+        "resources/imgs/Skip.png",
+        "resources/imgs/AI.png",
+        "resources/imgs/Swap.png",
+        "resources/imgs/Resign.png"
+    };
+    
+    private JPanel toolbarPanel;
 
     public void initToolbar(ActionListener listener, Container container) {
+        toolbarPanel = new JPanel();
+        toolbarPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        toolbarPanel.setOpaque(false);
+        
         for (int i = 0; i < options_buttons.length; i++) {
             options_buttons[i] = new JButton();
             options_buttons[i].addActionListener(listener);
-            container.add(options_buttons[i]);
-            if (i == 0) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Reset.png");
-                Image image = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(204, 204, 204));
-            } else if (i == 1) {
-                ImageIcon icon = new ImageIcon("resources/imgs/AI.png");
-                Image image = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(255, 188, 218));
-            } else if (i == 2) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Skip.png");
-                Image image = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(238, 215, 161));
-            } else if (i == 3) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Submit.png");
-                Image image = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(144, 238, 144));
-            } else if (i == 4) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Swap.png");
-                Image image = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(65, 105, 225));
-            } else if (i == 5) {
-                ImageIcon icon = new ImageIcon("resources/imgs/Resign.png");
-                Image image = icon.getImage().getScaledInstance(90, 90, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(image);
-                options_buttons[i].setIcon(icon);
-                options_buttons[i].setBorder(new RoundedButton(10));
-                options_buttons[i].setBackground(new Color(235, 45, 58));
-            }
+            
+            // Create icon (smaller for horizontal layout)
+            int iconSize = 28;
+            ImageIcon icon = new ImageIcon(iconPaths[i]);
+            Image image = icon.getImage().getScaledInstance(iconSize, iconSize, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            
+            // Set icon and text
+            options_buttons[i].setIcon(icon);
+            options_buttons[i].setText(buttonLabels[i]);
+            
+            // Position text to the RIGHT of icon (horizontal)
+            options_buttons[i].setHorizontalTextPosition(SwingConstants.RIGHT);
+            options_buttons[i].setVerticalTextPosition(SwingConstants.CENTER);
+            
+            // Add spacing between icon and text
+            options_buttons[i].setIconTextGap(8);
+            
+            // Style the text
+            options_buttons[i].setFont(new Font("Segoe UI", Font.BOLD, 12));
+            options_buttons[i].setForeground(Color.BLACK);
+            
+            // Button background
+            options_buttons[i].setBackground(buttonColors[i]);
+            
+            // Rounded border
+            options_buttons[i].setBorder(new RoundedButton(10));
+            
+            // Make sure button background is painted
+            options_buttons[i].setOpaque(true);
+            options_buttons[i].setContentAreaFilled(true);
+            options_buttons[i].setFocusPainted(false);
+            
+            // Set preferred size
+            options_buttons[i].setPreferredSize(new Dimension(100, 40));
+            
+            toolbarPanel.add(options_buttons[i]);
         }
+        
+        container.add(toolbarPanel);
     }
 
-    /** Sets bounds for the toolbar buttons. Call ONCE (e.g. from Panel.initBoard) -- they never move mid-game. */
+    /** Sets bounds for the toolbar panel. */
     public void layoutToolbarOnce(int x_p, int y_p, int width, int height) {
-        int x = x_p;
-        for (int i = 0; i < options_buttons.length; i++) {
-            options_buttons[i].setBounds(x, y_p, width, height);
-            x = x + width;
+        if (toolbarPanel != null) {
+            toolbarPanel.setBounds(x_p, y_p, width, height);
         }
     }
 

@@ -13,6 +13,7 @@ public class TileRackComponent {
     private JButton[] tile_rack_player_1 = new JButton[7];
     private JButton[] tile_rack_player_2 = new JButton[7];
     private JButton[] shuffle = new JButton[2];
+    private JButton[] reset = new JButton[2]; // Add reset buttons
 
     private Container container;
     private BoardGridComponent boardGridComponent;
@@ -37,6 +38,7 @@ public class TileRackComponent {
     public void initRacks(ActionListener listener, Container container, ArrayList<Tile> p1Tiles, ArrayList<Tile> p2Tiles) {
         this.container = container;
 
+        // Initialize shuffle buttons
         for (int i = 0; i < shuffle.length; i++) {
             ImageIcon icon = new ImageIcon("resources/imgs/Shuffle.png");
             Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
@@ -45,9 +47,24 @@ public class TileRackComponent {
             shuffle[i].addActionListener(listener);
             shuffle[i].setBorder(new RoundedButton(10));
             shuffle[i].setBackground(new Color(204, 204, 204));
+            shuffle[i].setToolTipText("Shuffle tiles");
             container.add(shuffle[i]);
         }
 
+        // Initialize reset buttons
+        for (int i = 0; i < reset.length; i++) {
+            ImageIcon icon = new ImageIcon("resources/imgs/Reset.png");
+            Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
+            icon = new ImageIcon(image);
+            reset[i] = new JButton(icon);
+            reset[i].addActionListener(listener);
+            reset[i].setBorder(new RoundedButton(10));
+            reset[i].setBackground(new Color(204, 204, 204));
+            reset[i].setToolTipText("Reset current move");
+            container.add(reset[i]);
+        }
+
+        // Initialize player 1 rack
         for (int i = 0; i < tile_rack_player_1.length; i++) {
             ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(p1Tiles.get(i).letter).toUpperCase() + ".png");
             Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
@@ -183,24 +200,36 @@ public class TileRackComponent {
         }
     }
 
-    /** Sets bounds for player 1's rack + shuffle button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
+    /** Sets bounds for player 1's rack + shuffle button + reset button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
     public void layoutPlayer1Once(int x_p, int y_p, int width, int height) {
+        // Shuffle button on the left
         shuffle[0].setBounds(x_p - 50, y_p, 40, 40);
+        
+        // Tile rack in the middle
         int x = x_p;
         for (int i = 0; i < tile_rack_player_1.length; i++) {
             tile_rack_player_1[i].setBounds(x, y_p, width, height);
             x = x + width;
         }
+        
+        // Reset button on the right
+        reset[0].setBounds(x + 10, y_p, 40, 40);
     }
 
-    /** Sets bounds for player 2's rack + shuffle button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
+    /** Sets bounds for player 2's rack + shuffle button + reset button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
     public void layoutPlayer2Once(int x_p, int y_p, int width, int height) {
+        // Shuffle button on the left
         shuffle[1].setBounds(x_p - 50, y_p, 40, 40);
+        
+        // Tile rack in the middle
         int x = x_p;
         for (int i = 0; i < tile_rack_player_2.length; i++) {
             tile_rack_player_2[i].setBounds(x, y_p, width, height);
             x = x + width;
         }
+        
+        // Reset button on the right
+        reset[1].setBounds(x + 10, y_p, 40, 40);
     }
 
     public JButton[] getTileRackPlayer1() {
@@ -213,5 +242,9 @@ public class TileRackComponent {
 
     public JButton[] getShuffleButtons() {
         return shuffle;
+    }
+
+    public JButton[] getResetButtons() {
+        return reset;
     }
 }
