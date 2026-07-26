@@ -80,31 +80,77 @@ public class Panel extends JPanel implements ActionListener {
         }
     }
 
+    // Cached so paint doesn't recompute word validity 60x/sec -- only ever
+    // rebuilt when temp_positions/tiles_selected_from_rack actually change
+    // (see recomputeWordSpans()).
+    private java.util.List<WordSpan> cachedWordSpans = new ArrayList<>();
+
+    // A small, dedicated always-on-top layer that only draws the cached
+    // rings. Living in its own JLayeredPane layer (rather than being drawn
+    // directly by Panel.paintComponent) means Swing correctly composites it
+    // whenever a board button underneath repaints itself (e.g. on hover) --
+    // ordinary overlapping siblings in a plain JPanel aren't guaranteed
+    // that, but layers in a JLayeredPane are. It only ever redraws the
+    // cached list, so its content never changes just because *something*
+    // triggered a repaint.
+    private JLayeredPane boardLayeredPane;
+    private JComponent ringOverlay;
+
     public Panel() {
         ref_board = board.getTheBoard();
         tiles_present_player1 = tileBag.getRack_player_1();
         tiles_present_player2 = tileBag.getRack_player_2();
         swap_panel.setPanel(this);
-        
+
         // Initialize the score component
         scoreComponent = new ScoreComponent(board, ref_board);
-        
+
         initBoard();
         coalescedRepaintTimer = new javax.swing.Timer(16, e -> {
-        if (needsRepaint) {
-        needsRepaint = false;
-        repaint();
-        }
-    });
+            if (needsRepaint) {
+                needsRepaint = false;
+                repaint();
+            }
+        });
     }
 
     private void initBoard() {
         setBackground(Color.WHITE);
         setPreferredSize(new Dimension(B_WIDTH, B_HEIGHT));
         setFocusable(true);
-        boardGridComponent.initGrid(this, this, ref_board);
+        // Without this, JPanel's default FlowLayout would fight our manual
+        // setBounds() calls (e.g. whenever revalidate()/updateComponentTreeUI
+        // runs), which is why bounds used to have to be reasserted on every
+        // single paint. With it, bounds set once simply stick.
+        setLayout(null);
+
+        // Board buttons live in their own layered pane so the ring overlay
+        // (added above them, in a higher layer) composites correctly.
+        boardLayeredPane = new JLayeredPane();
+        boardLayeredPane.setBounds(0, 0, B_WIDTH, B_HEIGHT);
+        boardLayeredPane.setOpaque(false);
+        boardLayeredPane.setBackground(Color.WHITE); // RoundedButton blends corners with parent.getBackground()
+        add(boardLayeredPane);
+
+        boardGridComponent.initGrid(this, boardLayeredPane, ref_board);
         tileRackComponent.initRacks(this, this, tiles_present_player1, tiles_present_player2);
         actionToolbarComponent.initToolbar(this, this);
+
+        ringOverlay = new JComponent() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                drawWordRings((Graphics2D) g);
+            }
+        };
+        ringOverlay.setOpaque(false);
+        ringOverlay.setBounds(0, 0, B_WIDTH, B_HEIGHT);
+        boardLayeredPane.add(ringOverlay, JLayeredPane.PALETTE_LAYER);
+
+        // Bounds never change mid-game -- set them once instead of on every paint.
+        boardGridComponent.layoutBoundsOnce(50, 50, 40, 40);
+        tileRackComponent.layoutPlayer1Once(720, 50, 40, 40);
+        tileRackComponent.layoutPlayer2Once(720, 500, 40, 40);
+        actionToolbarComponent.layoutToolbarOnce(680, 600, 100, 100);
 
         // Wire up drag-and-drop: rack tiles report drops directly to this panel.
         tileRackComponent.setBoardGridComponent(boardGridComponent);
@@ -131,43 +177,49 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     @Override
-    public void paint(Graphics g) {
-        super.paint(g);
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
         Graphics2D graphics2D = (Graphics2D) g;
         graphics2D.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        boardGridComponent.layoutGrid(graphics2D, 50, 50, 40, 40);
-        
+        boardGridComponent.drawGridLabels(graphics2D, 50, 50, 40, 40);
+
         // Update score component with current temp data
         scoreComponent.setTempData(temp_positions, tiles_selected_from_rack);
-        // Draw scores using the score component
         scoreComponent.drawScores(graphics2D, Player_score_1, Player_score_2, player);
-        
-        tileRackComponent.layoutPlayer1(graphics2D, 720, 50, 40, 40, player);
-        tileRackComponent.layoutPlayer2(graphics2D, 720, 500, 40, 40, player);
-        
-        actionToolbarComponent.layoutToolbar(680, 600, 100, 100);
+
         remainingTilesComponent.drawRemaining(graphics2D, 680, 250, tileBag.getRemaining());
-        drawWordRings(graphics2D);
     }
 
     /**
-     * Finds every word touched by this turn's (not-yet-submitted) tile
-     * placements -- the main word plus any perpendicular "cross words"
-     * formed along the way -- and draws a rounded rectangle ring around
-     * each one, green if it's a valid dictionary word, red otherwise.
-     * Single letters (no adjacent occupied cell) aren't rung, since they
-     * aren't words yet.
+     * Rebuilds the cached word spans from the current temp_positions /
+     * tiles_selected_from_rack and repaints just the ring overlay (not the
+     * whole panel). Call this any time those two collections change.
+     */
+    private void recomputeWordSpans() {
+        cachedWordSpans = computeWordSpans();
+        if (ringOverlay != null) {
+            ringOverlay.repaint();
+        }
+    }
+
+    /**
+     * Draws the cached word spans -- green if a valid dictionary word, red
+     * otherwise. This is the ring overlay's paintComponent body: it only
+     * ever draws cachedWordSpans, so repeated/incidental repaints (e.g. a
+     * board button's hover repaint triggering the overlay to redraw for
+     * proper compositing) always render the exact same rings, never fading
+     * or changing them.
      */
     private void drawWordRings(Graphics2D g) {
-        java.util.List<WordSpan> spans = computeWordSpans();
-        if (spans.isEmpty()) return;
+        if (cachedWordSpans.isEmpty()) return;
 
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         Stroke oldStroke = g.getStroke();
         g.setStroke(new BasicStroke(3f));
         int margin = 4;
         int arc = 16;
 
-        for (WordSpan span : spans) {
+        for (WordSpan span : cachedWordSpans) {
             Rectangle start = boardGridComponent.getButton(span.r1, span.c1).getBounds();
             Rectangle end = boardGridComponent.getButton(span.r2, span.c2).getBounds();
 
@@ -244,10 +296,6 @@ public class Panel extends JPanel implements ActionListener {
             }
         }
         return spans;
-    }
-
-    @Override
-    public void paintComponents(Graphics g) {
     }
 
     public void tile_rack_rearrange() {
@@ -359,7 +407,6 @@ public class Panel extends JPanel implements ActionListener {
             board.AI.hor_positions.clear();
             board.AI.ver_positions.clear();
             tileBag.remaining_tiles();
-            SwingUtilities.updateComponentTreeUI(this);
             change_turn();
 
         } else if (e.getSource() == options[2] && !swap_active) {
@@ -380,7 +427,6 @@ public class Panel extends JPanel implements ActionListener {
                     tile_rack_rearrange();
                     change_turn();
                     board.writeData();
-                    SwingUtilities.updateComponentTreeUI(this);
                 } else {
                     Reset_Tiles(player);
                     pos.clear();
@@ -516,7 +562,8 @@ public class Panel extends JPanel implements ActionListener {
         temp_positions.add(rc);
         current_letter_selected = null;
         current_tile_selected.clear();
-        
+        recomputeWordSpans();
+
         // Repaint only the affected areas
         targetButton.repaint();
         refresh();
@@ -537,6 +584,7 @@ public class Panel extends JPanel implements ActionListener {
         temp_positions.clear();
         tile_rack_rearrange();
         tiles_selected_from_rack.clear();
+        recomputeWordSpans();
         refresh();
     }
 
@@ -556,11 +604,12 @@ public class Panel extends JPanel implements ActionListener {
         tiles_selected_from_rack.clear();
         current_letter_selected = null;
         current_tile_selected.clear();
+        recomputeWordSpans();
 
-            // Only repaint if the panel is visible
+        // Only repaint if the panel is visible
         if (isVisible()) {
-        needsRepaint = true;
-        coalescedRepaintTimer.restart();
+            needsRepaint = true;
+            coalescedRepaintTimer.restart();
         }
     }
 
@@ -607,9 +656,9 @@ public class Panel extends JPanel implements ActionListener {
             boardGridComponent.getButton(row, col).setBackground(new Color(242, 191, 118));
         }
         temp_positions.add(new int[]{row, col});
+        recomputeWordSpans();
 
         refresh();
-        repaint();
     }
 
     /** Index into temp_positions/tiles_selected_from_rack for the cell (r, c) this turn, or -1 if it's not one of this turn's placements. */
@@ -648,9 +697,9 @@ public class Panel extends JPanel implements ActionListener {
         }
 
         temp_positions.set(idx, new int[]{toRow, toCol});
+        recomputeWordSpans();
 
         refresh();
-        repaint();
     }
 
     /**
@@ -672,8 +721,8 @@ public class Panel extends JPanel implements ActionListener {
 
         boardGridComponent.resetSingleTile(fromRow, fromCol, ref_board);
         tile_rack_rearrange();
+        recomputeWordSpans();
 
         refresh();
-        repaint();
     }
 }

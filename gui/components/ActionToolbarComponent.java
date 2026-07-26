@@ -58,7 +58,8 @@ public class ActionToolbarComponent {
         }
     }
 
-    public void layoutToolbar(int x_p, int y_p, int width, int height) {
+    /** Sets bounds for the toolbar buttons. Call ONCE (e.g. from Panel.initBoard) -- they never move mid-game. */
+    public void layoutToolbarOnce(int x_p, int y_p, int width, int height) {
         int x = x_p;
         for (int i = 0; i < options_buttons.length; i++) {
             options_buttons[i].setBounds(x, y_p, width, height);

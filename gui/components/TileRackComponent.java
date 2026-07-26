@@ -183,7 +183,8 @@ public class TileRackComponent {
         }
     }
 
-    public void layoutPlayer1(Graphics2D g, int x_p, int y_p, int width, int height, int player) {
+    /** Sets bounds for player 1's rack + shuffle button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
+    public void layoutPlayer1Once(int x_p, int y_p, int width, int height) {
         shuffle[0].setBounds(x_p - 50, y_p, 40, 40);
         int x = x_p;
         for (int i = 0; i < tile_rack_player_1.length; i++) {
@@ -192,7 +193,8 @@ public class TileRackComponent {
         }
     }
 
-    public void layoutPlayer2(Graphics2D g, int x_p, int y_p, int width, int height, int player) {
+    /** Sets bounds for player 2's rack + shuffle button. Call ONCE (e.g. from Panel.initBoard) -- these never move mid-game. */
+    public void layoutPlayer2Once(int x_p, int y_p, int width, int height) {
         shuffle[1].setBounds(x_p - 50, y_p, 40, 40);
         int x = x_p;
         for (int i = 0; i < tile_rack_player_2.length; i++) {

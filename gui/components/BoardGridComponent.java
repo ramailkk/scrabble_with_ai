@@ -211,46 +211,50 @@ public class BoardGridComponent {
         return null;
     }
 
-    public void layoutGrid(Graphics2D g, int x_p, int y_p, int width, int height) {
-    int x = x_p;
-    int y = y_p;
-    for (int i = 1; i <= 15; i++) {
-        for (int j = 1; j <= 15; j++) {
-            buttons[i - 1][j - 1].setBounds(x, y, width, height);
+    /** Sets each button's absolute bounds. Call this ONCE (from Panel.initBoard, after setLayout(null)) -- not on every paint. */
+    public void layoutBoundsOnce(int x_p, int y_p, int width, int height) {
+        int x = x_p;
+        int y = y_p;
+        for (int i = 1; i <= 15; i++) {
+            for (int j = 1; j <= 15; j++) {
+                buttons[i - 1][j - 1].setBounds(x, y, width, height);
+                x = x + width;
+            }
+            x = x_p;
+            y = y + height;
+        }
+    }
+
+    /** Cheap per-paint drawing: just the row/column coordinate labels around the board (no component mutation). */
+    public void drawGridLabels(Graphics2D g, int x_p, int y_p, int width, int height) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.BLACK);
+
+        // Smaller font for coordinates to fit closer to board
+        Font font = new Font("Consolas", Font.BOLD, 17);
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics();
+
+        // Row numbers (left side) - positioned just outside the board
+        int x = x_p - 6; // Reduced gap
+        int y = y_p + height / 2 + fm.getAscent() / 2 - 2;
+        for (int i = 1; i <= 15; i++) {
+            String num = String.valueOf(i);
+            int numWidth = fm.stringWidth(num);
+            g.drawString(num, x - numWidth, y);
+            y = y + height;
+        }
+
+        // Column letters (top) - positioned just above the board
+        x = x_p + width / 2;
+        y = y_p - 6; // Reduced gap
+        for (int i = 1; i <= 15; i++) {
+            String letter = String.valueOf((char) (64 + i));
+            int letterWidth = fm.stringWidth(letter);
+            g.drawString(letter, x - letterWidth / 2, y);
             x = x + width;
         }
-        x = x_p;
-        y = y + height;
     }
-    
-    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    g.setColor(Color.BLACK);
-    
-    // Smaller font for coordinates to fit closer to board
-    Font font = new Font("Consolas", Font.BOLD, 17);
-    g.setFont(font);
-    FontMetrics fm = g.getFontMetrics();
-    
-    // Row numbers (left side) - positioned just outside the board
-    x = x_p - 6; // Reduced gap
-    y = y_p + height / 2 + fm.getAscent() / 2 - 2;
-    for (int i = 1; i <= 15; i++) {
-        String num = String.valueOf(i);
-        int numWidth = fm.stringWidth(num);
-        g.drawString(num, x - numWidth, y);
-        y = y + height;
-    }
-    
-    // Column letters (top) - positioned just above the board
-    x = x_p + width / 2;
-    y = y_p - 6; // Reduced gap
-    for (int i = 1; i <= 15; i++) {
-        String letter = String.valueOf((char) (64 + i));
-        int letterWidth = fm.stringWidth(letter);
-        g.drawString(letter, x - letterWidth / 2, y);
-        x = x + width;
-    }
-}
 
     public void AI_tileSetter(BoardCell[][] refBoard) {
         for (int r = 0; r < 15; r++) {
