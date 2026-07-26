@@ -14,6 +14,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 
+import javax.swing.Timer;
+
 public class Panel extends JPanel implements ActionListener {
     public boolean swap_active = false;
     private int B_WIDTH = 1280;
@@ -36,6 +38,11 @@ public class Panel extends JPanel implements ActionListener {
     private ArrayList<int[]> temp_positions = new ArrayList<>();
     private int Player_score_1 = 0;
     private int Player_score_2 = 0;
+
+    private Timer dropCheckTimer;
+    private boolean dragDropInProgress = false;
+
+    
     Swap_Panel swap_panel = new Swap_Panel();
 
     private boolean gameEnd;
@@ -46,6 +53,9 @@ public class Panel extends JPanel implements ActionListener {
         tiles_present_player2 = tileBag.getRack_player_2();
         swap_panel.setPanel(this);
         initBoard();
+
+        dropCheckTimer = new Timer(100, e -> checkForDrop());
+        dropCheckTimer.start();
     }
 
     private void initBoard() {
@@ -358,4 +368,89 @@ public class Panel extends JPanel implements ActionListener {
     public ArrayList<Tile> getTiles_present_player2() {
         return tiles_present_player2;
     }
+
+    // Add this method to check for drops
+private void checkForDrop() {
+    if (boardGridComponent.getLastDropInfo() != null) {
+        BoardGridComponent.DropInfo dropInfo = boardGridComponent.getLastDropInfo();
+        boardGridComponent.clearLastDropInfo();
+        
+        int row = dropInfo.row;
+        int col = dropInfo.col;
+        int player = dropInfo.player;
+        int tileIndex = dropInfo.tileIndex;
+        
+        // Check if the player matches the current turn
+        if (player != this.player) {
+            JOptionPane.showMessageDialog(this, "It's not your turn!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        // Check if the tile is already placed
+        if (!boardGridComponent.isFreeTile(ref_board, row, col)) {
+            JOptionPane.showMessageDialog(this, "This square is already occupied!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        // Get the tile from the appropriate rack
+        Tile tileToPlace = null;
+        if (player == 1 && tileIndex < tiles_present_player1.size()) {
+            tileToPlace = tiles_present_player1.get(tileIndex);
+        } else if (player == 2 && tileIndex < tiles_present_player2.size()) {
+            tileToPlace = tiles_present_player2.get(tileIndex);
+        }
+        
+        if (tileToPlace != null) {
+            // Place the tile on the board
+            current_tile_selected.clear();
+            current_tile_selected.add(row);
+            current_tile_selected.add(col);
+            current_letter_selected = tileToPlace;
+            
+            // Use the existing tile_setter logic
+            tile_setter_drag(tileIndex, player);
+        }
+    }
+}
+
+// Add this method for drag placement
+private void tile_setter_drag(int index, int player) {
+    if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
+        int row = current_tile_selected.get(0);
+        int col = current_tile_selected.get(1);
+        
+        if (!boardGridComponent.isFreeTile(ref_board, row, col)) {
+            current_tile_selected.clear();
+            current_letter_selected = null;
+            return;
+        }
+
+        // Place the tile on the board visually
+        ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(current_letter_selected.letter).toUpperCase() + ".png");
+        Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
+        icon = new ImageIcon(image);
+        boardGridComponent.getButton(row, col).setIcon(icon);
+
+        // Remove from rack
+        if (player == 1) {
+            tiles_present_player1.remove(current_letter_selected);
+        } else {
+            tiles_present_player2.remove(current_letter_selected);
+        }
+        
+        tiles_selected_from_rack.add(current_letter_selected);
+        tile_rack_rearrange();
+        
+        int[] rc = {row, col};
+        if (!boardGridComponent.isSpecialTile(ref_board, row, col)) {
+            boardGridComponent.getButton(row, col).setBackground(new Color(242, 191, 118));
+        }
+        temp_positions.add(rc);
+        
+        current_letter_selected = null;
+        current_tile_selected.clear();
+        
+        refresh();
+    }
+}
 }

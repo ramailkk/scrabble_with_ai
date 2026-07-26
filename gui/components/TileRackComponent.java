@@ -4,7 +4,11 @@ import application.model.Tile;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 public class TileRackComponent {
@@ -23,6 +27,7 @@ public class TileRackComponent {
             shuffle[i].setBackground(new Color(204, 204, 204));
             container.add(shuffle[i]);
         }
+
         for (int i = 0; i < tile_rack_player_1.length; i++) {
             ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(p1Tiles.get(i).letter).toUpperCase() + ".png");
             Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
@@ -31,6 +36,7 @@ public class TileRackComponent {
             tile_rack_player_1[i].addActionListener(listener);
             tile_rack_player_1[i].setBorder(new RoundedButton(10));
             tile_rack_player_1[i].setBackground(new Color(242, 191, 118));
+            makeDraggable(tile_rack_player_1[i], i, 1, p1Tiles);
             container.add(tile_rack_player_1[i]);
 
             icon = new ImageIcon("resources/imgs/" + String.valueOf(p2Tiles.get(i).letter).toUpperCase() + ".png");
@@ -40,8 +46,55 @@ public class TileRackComponent {
             tile_rack_player_2[i].addActionListener(listener);
             tile_rack_player_2[i].setBorder(new RoundedButton(10));
             tile_rack_player_2[i].setBackground(new Color(242, 191, 118));
+            makeDraggable(tile_rack_player_2[i], i, 2, p2Tiles);
             container.add(tile_rack_player_2[i]);
         }
+    }
+
+    private void makeDraggable(JButton button, int index, int player, ArrayList<Tile> rack) {
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (index < rack.size()) {
+                    Tile t = rack.get(index);
+                    button.putClientProperty("tile_letter", t.letter);
+                    button.putClientProperty("tile_value", t.value);
+                    button.putClientProperty("tile_index", index);
+                    button.putClientProperty("tile_player", player);
+                }
+
+                JButton src = (JButton) e.getSource();
+                TransferHandler handler = src.getTransferHandler();
+                if (handler != null) {
+                    handler.exportAsDrag(src, e, TransferHandler.COPY);
+                }
+            }
+        });
+
+        button.setTransferHandler(new TransferHandler() {
+            @Override
+            public int getSourceActions(JComponent c) {
+                return COPY;
+            }
+
+            @Override
+            protected Transferable createTransferable(JComponent c) {
+                JButton b = (JButton) c;
+                Object letter = b.getClientProperty("tile_letter");
+                Object playerObj = b.getClientProperty("tile_player");
+                Object indexObj = b.getClientProperty("tile_index");
+
+                if (letter != null && playerObj != null && indexObj != null) {
+                    String data = playerObj + "," + indexObj + "," + letter;
+                    return new StringSelection(data);
+                }
+                return null;
+            }
+
+            @Override
+            protected void exportDone(JComponent source, Transferable data, int action) {
+            }
+        });
     }
 
     public void rearrange(int player, ArrayList<Tile> p1Tiles, ArrayList<Tile> p2Tiles) {

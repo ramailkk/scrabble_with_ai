@@ -1,8 +1,30 @@
 PLAYER: 1
-ALIVE
-SCORE ON THE MOVE: 18
+BOY
+SCORE ON THE MOVE: 16
 ----------------
 PLAYER: 2
-HOAXES
-SCORE ON THE MOVE: 32
+SANGA
+BOYG
+SCORE ON THE MOVE: 22
+----------------
+PLAYER: 1
+FAP
+SCORE ON THE MOVE: 16
+----------------
+PLAYER: 2
+HUTIA
+AH
+SCORE ON THE MOVE: 21
+----------------
+PLAYER: 1
+FOX
+BO
+OX
+SCORE ON THE MOVE: 30
+----------------
+PLAYER: 2
+ONIE
+FOY
+PI
+SCORE ON THE MOVE: 18
 ----------------
