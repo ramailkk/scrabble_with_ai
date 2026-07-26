@@ -1,0 +1,107 @@
+# ============================================
+# Java compiled files
+# ============================================
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.rar
+*.exe
+*.msi
+*.ico
+
+# ============================================
+# Build directories
+# ============================================
+out/
+dist/
+dist2/
+dist_new/
+build/
+target/
+bin/
+classes/
+
+# ============================================
+# IDE files
+# ============================================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.settings/
+.classpath
+.project
+.metadata/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+nbproject/
+nbactions.xml
+
+# ============================================
+# OS files
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+*.tmp
+*.log
+
+# ============================================
+# Project specific - Game logs
+# ============================================
+game_results/
+moves.txt
+horiMoves.txt
+vertiMoves.txt
+*.txt
+!resources/Dictionaries/words.txt
+
+# ============================================
+# Release packages
+# ============================================
+Scrabble-*-Windows/
+Scrabble-*-Windows.zip
+*.zip
+
+# ============================================
+# Java specific
+# ============================================
+manifest.txt
+ScrabbleGame.jar
+META-INF/
+
+# ============================================
+# Backup files
+# ============================================
+*.bak
+*.swp
+*~
+\#*#
+
+# ============================================
+# Large binary files (if any)
+# ============================================
+*.dll
+*.so
+*.dylib
+
+# ============================================
+# Application specific
+# ============================================
+# Don't commit bundled JRE (it's huge)
+runtime/
+
+# Don't commit the app-image (it's generated)
+app/
+!app/**/*.java
