@@ -21,6 +21,10 @@ public class Panel extends JPanel implements ActionListener {
     public Board board = new Board();
     public TileBag tileBag = new TileBag();
     BoardCell[][] ref_board;
+    private boolean needsRepaint = false;
+    
+    private javax.swing.Timer coalescedRepaintTimer;
+
 
     private BoardGridComponent boardGridComponent = new BoardGridComponent();
     private TileRackComponent tileRackComponent = new TileRackComponent();
@@ -80,6 +84,12 @@ public class Panel extends JPanel implements ActionListener {
         tiles_present_player2 = tileBag.getRack_player_2();
         swap_panel.setPanel(this);
         initBoard();
+        coalescedRepaintTimer = new javax.swing.Timer(16, e -> {
+        if (needsRepaint) {
+        needsRepaint = false;
+        repaint();
+        }
+    });
     }
 
     private void initBoard() {
@@ -437,36 +447,48 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     private void tile_setter(int i) {
-        if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
-            if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
-                current_tile_selected.clear();
-                current_letter_selected = null;
-                return;
-            }
-
-            ImageIcon icon = new ImageIcon("resources/imgs/" + String.valueOf(current_letter_selected.letter) + ".png");
-            Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
-            icon = new ImageIcon(image);
-            boardGridComponent.getButton(current_tile_selected.get(0), current_tile_selected.get(1)).setIcon(icon);
-
-            if (player == 1) {
-                tiles_present_player1.remove(current_letter_selected);
-                tiles_selected_from_rack.add(current_letter_selected);
-            } else {
-                tiles_present_player2.remove(current_letter_selected);
-                tiles_selected_from_rack.add(current_letter_selected);
-            }
-            tile_rack_rearrange();
-            int[] rc = {current_tile_selected.get(0), current_tile_selected.get(1)};
-            if (!boardGridComponent.isSpecialTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
-                boardGridComponent.getButton(current_tile_selected.get(0), current_tile_selected.get(1)).setBackground(new Color(242, 191, 118));
-            }
-            temp_positions.add(rc);
-            current_letter_selected = null;
+    if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
+        if (!boardGridComponent.isFreeTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
             current_tile_selected.clear();
-            repaint();
+            current_letter_selected = null;
+            return;
         }
+
+        // Use a local variable for the button to avoid repeated lookups
+        JButton targetButton = boardGridComponent.getButton(
+            current_tile_selected.get(0), 
+            current_tile_selected.get(1)
+        );
+        
+        ImageIcon icon = new ImageIcon("resources/imgs/" + 
+            String.valueOf(current_letter_selected.letter).toUpperCase() + ".png");
+        Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
+        icon = new ImageIcon(image);
+        targetButton.setIcon(icon);
+
+        if (player == 1) {
+            tiles_present_player1.remove(current_letter_selected);
+            tiles_selected_from_rack.add(current_letter_selected);
+        } else {
+            tiles_present_player2.remove(current_letter_selected);
+            tiles_selected_from_rack.add(current_letter_selected);
+        }
+        
+        // Only update rack buttons that changed
+        tileRackComponent.rearrange(player, tiles_present_player1, tiles_present_player2);
+        
+        int[] rc = {current_tile_selected.get(0), current_tile_selected.get(1)};
+        if (!boardGridComponent.isSpecialTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
+            targetButton.setBackground(new Color(242, 191, 118));
+        }
+        temp_positions.add(rc);
+        current_letter_selected = null;
+        current_tile_selected.clear();
+        
+        // Repaint only the affected areas
+        targetButton.repaint();
     }
+}
 
     public void AI_tileSetter() {
         boardGridComponent.AI_tileSetter(ref_board);
@@ -486,7 +508,10 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     public void refresh() {
-        SwingUtilities.updateComponentTreeUI(this);
+         needsRepaint = true;
+        coalescedRepaintTimer.restart();
+    // Only repaint specific components if possible
+    // repaint(); // Remove this - let the timer handle it
     }
 
     public void change_turn() {
@@ -500,7 +525,12 @@ public class Panel extends JPanel implements ActionListener {
         tiles_selected_from_rack.clear();
         current_letter_selected = null;
         current_tile_selected.clear();
-        repaint();
+
+            // Only repaint if the panel is visible
+        if (isVisible()) {
+        needsRepaint = true;
+        coalescedRepaintTimer.restart();
+        }
     }
 
     public ArrayList<Tile> getTiles_present_player1() {
