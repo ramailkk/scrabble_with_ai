@@ -41,6 +41,39 @@ public class Panel extends JPanel implements ActionListener {
 
     private boolean gameEnd;
 
+    /**
+     * Pluggable word-validity check, used to color the rings drawn around
+     * words formed by this turn's tile placements. Defaults to the board's
+     * actual dictionary (Board.dictionary is a MyTrie), so this works out
+     * of the box; call setWordValidator(...) if you ever want to swap the
+     * check for something else (e.g. during testing).
+     */
+    private WordValidator wordValidator = word -> board.dictionary.validateWord(word);
+
+    public interface WordValidator {
+        boolean isValid(String word);
+    }
+
+    public void setWordValidator(WordValidator wordValidator) {
+        this.wordValidator = wordValidator;
+    }
+
+    /** A single word formed on the board, expressed as its cell span. */
+    private static class WordSpan {
+        final int r1, c1, r2, c2; // inclusive endpoints; same row (horizontal) or same col (vertical)
+        final String word;
+        final boolean valid;
+
+        WordSpan(int r1, int c1, int r2, int c2, String word, boolean valid) {
+            this.r1 = r1;
+            this.c1 = c1;
+            this.r2 = r2;
+            this.c2 = c2;
+            this.word = word;
+            this.valid = valid;
+        }
+    }
+
     public Panel() {
         ref_board = board.getTheBoard();
         tiles_present_player1 = tileBag.getRack_player_1();
@@ -72,6 +105,103 @@ public class Panel extends JPanel implements ActionListener {
         tileRackComponent.layoutPlayer2(graphics2D, 720, 500, 40, 40, player, Player_score_2);
         actionToolbarComponent.layoutToolbar(680, 600, 100, 100);
         remainingTilesComponent.drawRemaining(graphics2D, 680, 250, tileBag.getRemaining());
+        drawWordRings(graphics2D);
+    }
+
+    /**
+     * Finds every word touched by this turn's (not-yet-submitted) tile
+     * placements -- the main word plus any perpendicular "cross words"
+     * formed along the way -- and draws a rounded rectangle ring around
+     * each one, green if it's a valid dictionary word, red otherwise.
+     * Single letters (no adjacent occupied cell) aren't rung, since they
+     * aren't words yet.
+     */
+    private void drawWordRings(Graphics2D g) {
+        java.util.List<WordSpan> spans = computeWordSpans();
+        if (spans.isEmpty()) return;
+
+        Stroke oldStroke = g.getStroke();
+        g.setStroke(new BasicStroke(3f));
+        int margin = 4;
+        int arc = 16;
+
+        for (WordSpan span : spans) {
+            Rectangle start = boardGridComponent.getButton(span.r1, span.c1).getBounds();
+            Rectangle end = boardGridComponent.getButton(span.r2, span.c2).getBounds();
+
+            int x = start.x - margin;
+            int y = start.y - margin;
+            int w = (end.x + end.width) - start.x + margin * 2;
+            int h = (end.y + end.height) - start.y + margin * 2;
+
+            g.setColor(span.valid ? new Color(0, 170, 0) : new Color(220, 50, 50));
+            g.drawRoundRect(x, y, w, h, arc, arc);
+        }
+
+        g.setStroke(oldStroke);
+    }
+
+    /**
+     * Builds the board+in-progress-move as one combined letter grid, then
+     * for every tile placed this turn walks outward in both directions to
+     * find the horizontal word and the vertical word through it (a tile
+     * can be part of both -- e.g. it extends the main word and also forms
+     * a new cross word with an existing tile). Each distinct span (by
+     * orientation + row/col + start/end) is only reported once, even if
+     * multiple placed tiles belong to the same word.
+     */
+    private java.util.List<WordSpan> computeWordSpans() {
+        java.util.List<WordSpan> spans = new ArrayList<>();
+        if (temp_positions.isEmpty()) return spans;
+
+        char[][] grid = new char[15][15];
+        boolean[][] occ = new boolean[15][15];
+        for (int r = 0; r < 15; r++) {
+            for (int c = 0; c < 15; c++) {
+                if (ref_board[r][c].isOccupied) {
+                    grid[r][c] = Character.toUpperCase(ref_board[r][c].tile.letter);
+                    occ[r][c] = true;
+                }
+            }
+        }
+        for (int i = 0; i < temp_positions.size() && i < tiles_selected_from_rack.size(); i++) {
+            int r = temp_positions.get(i)[0];
+            int c = temp_positions.get(i)[1];
+            grid[r][c] = Character.toUpperCase(tiles_selected_from_rack.get(i).letter);
+            occ[r][c] = true;
+        }
+
+        Set<String> seen = new HashSet<>();
+        for (int[] pos : temp_positions) {
+            int r = pos[0], c = pos[1];
+
+            int c1 = c, c2 = c;
+            while (c1 - 1 >= 0 && occ[r][c1 - 1]) c1--;
+            while (c2 + 1 <= 14 && occ[r][c2 + 1]) c2++;
+            if (c2 > c1) {
+                String key = "H" + r + "_" + c1 + "_" + c2;
+                if (seen.add(key)) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int cc = c1; cc <= c2; cc++) sb.append(grid[r][cc]);
+                    String word = sb.toString();
+                    spans.add(new WordSpan(r, c1, r, c2, word, wordValidator.isValid(word)));
+                }
+            }
+
+            int r1 = r, r2 = r;
+            while (r1 - 1 >= 0 && occ[r1 - 1][c]) r1--;
+            while (r2 + 1 <= 14 && occ[r2 + 1][c]) r2++;
+            if (r2 > r1) {
+                String key = "V" + c + "_" + r1 + "_" + r2;
+                if (seen.add(key)) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int rr = r1; rr <= r2; rr++) sb.append(grid[rr][c]);
+                    String word = sb.toString();
+                    spans.add(new WordSpan(r1, c, r2, c, word, wordValidator.isValid(word)));
+                }
+            }
+        }
+        return spans;
     }
 
     @Override
@@ -292,9 +422,23 @@ public class Panel extends JPanel implements ActionListener {
         }
     }
 
+    /**
+     * True only if the cell is free on the committed board AND isn't
+     * already occupied by a tile placed earlier this same turn (which
+     * boardGridComponent.isFreeTile alone can't see, since temp placements
+     * aren't written into ref_board until the move is submitted).
+     */
+    private boolean isCellAvailable(int r, int c) {
+        if (!boardGridComponent.isFreeTile(ref_board, r, c)) return false;
+        for (int[] pos : temp_positions) {
+            if (pos[0] == r && pos[1] == c) return false;
+        }
+        return true;
+    }
+
     private void tile_setter(int i) {
         if (current_letter_selected != null && !current_tile_selected.isEmpty()) {
-            if (!boardGridComponent.isFreeTile(ref_board, current_tile_selected.get(0), current_tile_selected.get(1))) {
+            if (!isCellAvailable(current_tile_selected.get(0), current_tile_selected.get(1))) {
                 current_tile_selected.clear();
                 current_letter_selected = null;
                 return;
@@ -320,6 +464,7 @@ public class Panel extends JPanel implements ActionListener {
             temp_positions.add(rc);
             current_letter_selected = null;
             current_tile_selected.clear();
+            repaint();
         }
     }
 
@@ -337,6 +482,7 @@ public class Panel extends JPanel implements ActionListener {
         temp_positions.clear();
         tile_rack_rearrange();
         tiles_selected_from_rack.clear();
+        repaint();
     }
 
     public void refresh() {
@@ -354,6 +500,7 @@ public class Panel extends JPanel implements ActionListener {
         tiles_selected_from_rack.clear();
         current_letter_selected = null;
         current_tile_selected.clear();
+        repaint();
     }
 
     public ArrayList<Tile> getTiles_present_player1() {
@@ -374,7 +521,7 @@ public class Panel extends JPanel implements ActionListener {
             return;
         }
 
-        if (!boardGridComponent.isFreeTile(ref_board, row, col)) {
+        if (!isCellAvailable(row, col)) {
             JOptionPane.showMessageDialog(this, "This square is already occupied!", "Invalid Move", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -400,5 +547,6 @@ public class Panel extends JPanel implements ActionListener {
         temp_positions.add(new int[]{row, col});
 
         refresh();
+        repaint();
     }
 }
