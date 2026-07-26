@@ -4,73 +4,21 @@ import application.model.BoardCell;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 
 public class BoardGridComponent {
     private JButton[][] buttons = new JButton[15][15];
     private boolean[][] tempBoard = new boolean[15][15];
-    private BoardDropHandler dropHandler;
-
-    public static class DropInfo {
-        public int player;
-        public int tileIndex;
-        public int row;
-        public int col;
-
-        public DropInfo(int player, int tileIndex, int row, int col) {
-            this.player = player;
-            this.tileIndex = tileIndex;
-            this.row = row;
-            this.col = col;
-        }
-    }
-
-    public class BoardDropHandler {
-        public DropInfo lastDropInfo;
-
-        public void handleDrop(int player, int tileIndex, int row, int col) {
-            lastDropInfo = new DropInfo(player, tileIndex, row, col);
-        }
-    }
+    private Container container;
 
     public void initGrid(ActionListener listener, Container container, BoardCell[][] refBoard) {
-        dropHandler = new BoardDropHandler();
+        this.container = container;
 
         for (int i = 0; i < buttons.length; i++) {
             for (int j = 0; j < buttons[0].length; j++) {
                 buttons[i][j] = new JButton();
                 buttons[i][j].addActionListener(listener);
-                buttons[i][j].setTransferHandler(new TransferHandler() {
-                    @Override
-                    public boolean canImport(TransferSupport support) {
-                        return support.isDataFlavorSupported(DataFlavor.stringFlavor);
-                    }
-
-                    @Override
-                    public boolean importData(TransferSupport support) {
-                        try {
-                            String data = (String) support.getTransferable().getTransferData(DataFlavor.stringFlavor);
-                            String[] parts = data.split(",");
-                            int player = Integer.parseInt(parts[0]);
-                            int index = Integer.parseInt(parts[1]);
-
-                            JButton target = (JButton) support.getComponent();
-                            for (int r = 0; r < buttons.length; r++) {
-                                for (int c = 0; c < buttons[0].length; c++) {
-                                    if (buttons[r][c] == target) {
-                                        dropHandler.handleDrop(player, index, r, c);
-                                        return true;
-                                    }
-                                }
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        return false;
-                    }
-                });
 
                 if (i == 7 && j == 7) {
                     ImageIcon icon = new ImageIcon("resources/imgs/Star.png");
@@ -121,17 +69,32 @@ public class BoardGridComponent {
         }
     }
 
-    public DropInfo getLastDropInfo() {
-        if (dropHandler != null) {
-            return dropHandler.lastDropInfo;
-        }
-        return null;
+    /**
+     * Returns the container the board buttons live in. Rack tiles are added
+     * to the same container (see Panel.initBoard), so a point can be
+     * converted into this coordinate space and passed to getCellAt.
+     */
+    public Container getContainer() {
+        return container;
     }
 
-    public void clearLastDropInfo() {
-        if (dropHandler != null) {
-            dropHandler.lastDropInfo = null;
+    /**
+     * Hit-tests a point (already expressed in this component's container's
+     * coordinate space) against the 15x15 grid of board buttons.
+     *
+     * @return {row, col} of the cell under the point, or null if the point
+     *         isn't over any board cell.
+     */
+    public int[] getCellAt(Point pointInContainerCoords) {
+        if (pointInContainerCoords == null) return null;
+        for (int r = 0; r < buttons.length; r++) {
+            for (int c = 0; c < buttons[0].length; c++) {
+                if (buttons[r][c].isShowing() && buttons[r][c].getBounds().contains(pointInContainerCoords)) {
+                    return new int[]{r, c};
+                }
+            }
         }
+        return null;
     }
 
     public void layoutGrid(Graphics2D g, int x_p, int y_p, int width, int height) {

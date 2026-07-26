@@ -4,8 +4,6 @@ import application.model.Tile;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
-import java.awt.datatransfer.Transferable;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -16,7 +14,29 @@ public class TileRackComponent {
     private JButton[] tile_rack_player_2 = new JButton[7];
     private JButton[] shuffle = new JButton[2];
 
+    private Container container;
+    private BoardGridComponent boardGridComponent;
+    private TileDropListener dropListener;
+
+    // state for the tile currently being dragged (only one drag happens at a time)
+    private JLabel dragLabel;
+
+    /** Callback fired when a rack tile is dropped onto a board cell. */
+    public interface TileDropListener {
+        void onTileDropped(int player, int index, int row, int col);
+    }
+
+    public void setBoardGridComponent(BoardGridComponent boardGridComponent) {
+        this.boardGridComponent = boardGridComponent;
+    }
+
+    public void setDropListener(TileDropListener dropListener) {
+        this.dropListener = dropListener;
+    }
+
     public void initRacks(ActionListener listener, Container container, ArrayList<Tile> p1Tiles, ArrayList<Tile> p2Tiles) {
+        this.container = container;
+
         for (int i = 0; i < shuffle.length; i++) {
             ImageIcon icon = new ImageIcon("resources/imgs/Shuffle.png");
             Image image = icon.getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH);
@@ -51,50 +71,84 @@ public class TileRackComponent {
         }
     }
 
+    /**
+     * Manual drag implementation: on press, a floating copy of the tile's
+     * icon is added to the window's glass pane and tracked with the mouse.
+     * On release, if the pointer is over a free board cell, the drop
+     * listener is invoked; otherwise the floating tile is simply removed
+     * and the rack button (which never lost its icon) is left exactly as
+     * it was -- i.e. the tile "snaps back" to the rack for free.
+     */
     private void makeDraggable(JButton button, int index, int player, ArrayList<Tile> rack) {
-        button.addMouseListener(new MouseAdapter() {
+        MouseAdapter dragAdapter = new MouseAdapter() {
+            private ImageIcon originalIcon;
+
             @Override
             public void mousePressed(MouseEvent e) {
-                if (index < rack.size()) {
-                    Tile t = rack.get(index);
-                    button.putClientProperty("tile_letter", t.letter);
-                    button.putClientProperty("tile_value", t.value);
-                    button.putClientProperty("tile_index", index);
-                    button.putClientProperty("tile_player", player);
-                }
+                if (index >= rack.size() || button.getIcon() == null) return;
 
-                JButton src = (JButton) e.getSource();
-                TransferHandler handler = src.getTransferHandler();
-                if (handler != null) {
-                    handler.exportAsDrag(src, e, TransferHandler.COPY);
-                }
-            }
-        });
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+                if (rootPane == null) return;
 
-        button.setTransferHandler(new TransferHandler() {
-            @Override
-            public int getSourceActions(JComponent c) {
-                return COPY;
-            }
+                originalIcon = (ImageIcon) button.getIcon();
 
-            @Override
-            protected Transferable createTransferable(JComponent c) {
-                JButton b = (JButton) c;
-                Object letter = b.getClientProperty("tile_letter");
-                Object playerObj = b.getClientProperty("tile_player");
-                Object indexObj = b.getClientProperty("tile_index");
+                JComponent glass = (JComponent) rootPane.getGlassPane();
+                glass.setLayout(null);
 
-                if (letter != null && playerObj != null && indexObj != null) {
-                    String data = playerObj + "," + indexObj + "," + letter;
-                    return new StringSelection(data);
-                }
-                return null;
+                dragLabel = new JLabel(originalIcon);
+                dragLabel.setSize(button.getWidth(), button.getHeight());
+                Point startInGlass = SwingUtilities.convertPoint(button, e.getPoint(), glass);
+                dragLabel.setLocation(startInGlass.x - dragLabel.getWidth() / 2, startInGlass.y - dragLabel.getHeight() / 2);
+                glass.add(dragLabel);
+                glass.setVisible(true);
+
+                // Hide the icon in the rack slot while the tile is "in the air",
+                // but keep the button itself (border/background) in place.
+                button.setIcon(null);
             }
 
             @Override
-            protected void exportDone(JComponent source, Transferable data, int action) {
+            public void mouseDragged(MouseEvent e) {
+                if (dragLabel == null) return;
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+                if (rootPane == null) return;
+                JComponent glass = (JComponent) rootPane.getGlassPane();
+                Point p = SwingUtilities.convertPoint(button, e.getPoint(), glass);
+                dragLabel.setLocation(p.x - dragLabel.getWidth() / 2, p.y - dragLabel.getHeight() / 2);
+                glass.repaint();
             }
-        });
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (dragLabel == null) return;
+                JRootPane rootPane = SwingUtilities.getRootPane(button);
+
+                int[] cell = null;
+                if (rootPane != null && boardGridComponent != null && container != null) {
+                    Point pointInContainer = SwingUtilities.convertPoint(button, e.getPoint(), boardGridComponent.getContainer());
+                    cell = boardGridComponent.getCellAt(pointInContainer);
+                }
+
+                if (rootPane != null) {
+                    JComponent glass = (JComponent) rootPane.getGlassPane();
+                    glass.remove(dragLabel);
+                    glass.setVisible(false);
+                    glass.repaint();
+                }
+                dragLabel = null;
+
+                // Restore the rack icon by default -- if the drop is accepted,
+                // the listener will trigger a full rack rearrange that
+                // overwrites this anyway.
+                button.setIcon(originalIcon);
+
+                if (cell != null && dropListener != null) {
+                    dropListener.onTileDropped(player, index, cell[0], cell[1]);
+                }
+            }
+        };
+        button.addMouseListener(dragAdapter);
+        button.addMouseMotionListener(dragAdapter);
     }
 
     public void rearrange(int player, ArrayList<Tile> p1Tiles, ArrayList<Tile> p2Tiles) {
