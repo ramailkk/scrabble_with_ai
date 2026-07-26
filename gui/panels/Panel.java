@@ -5,6 +5,7 @@ import application.model.BoardCell;
 import application.model.Tile;
 import application.model.TileBag;
 import gui.components.ActionToolbarComponent;
+import gui.components.AIMoveAnimator;
 import gui.components.BoardGridComponent;
 import gui.components.RemainingTilesComponent;
 import gui.components.TileRackComponent;
@@ -45,14 +46,56 @@ public class Panel extends JPanel implements ActionListener {
 
     private boolean gameEnd;
 
+    // AI Animation fields
+    private AIMoveAnimator aiAnimator;
+    private boolean isAIAnimating = false;
+
     private WordValidator wordValidator = word -> board.dictionary.validateWord(word);
 
     public interface WordValidator {
         boolean isValid(String word);
     }
 
-    public void setWordValidator(WordValidator wordValidator) {
-        this.wordValidator = wordValidator;
+    // Getters for AI animation
+    public ArrayList<Tile> getTiles_present_player1() {
+        return tiles_present_player1;
+    }
+
+    public ArrayList<Tile> getTiles_present_player2() {
+        return tiles_present_player2;
+    }
+
+    public ArrayList<Tile> getTilesSelectedFromRack() {
+        return tiles_selected_from_rack;
+    }
+
+    public ArrayList<int[]> getTempPositions() {
+        return temp_positions;
+    }
+
+    public void setAIAnimating(boolean animating) {
+        this.isAIAnimating = animating;
+    }
+
+    public void recomputeWordSpans() {
+        cachedWordSpans = computeWordSpans();
+        if (ringOverlay != null) {
+            ringOverlay.repaint();
+        }
+    }
+
+    public void Reset_Tiles(int player) {
+        if (player == 1) {
+            tiles_present_player1.addAll(tiles_selected_from_rack);
+        } else {
+            tiles_present_player2.addAll(tiles_selected_from_rack);
+        }
+        boardGridComponent.resetTiles(temp_positions, ref_board);
+        temp_positions.clear();
+        tile_rack_rearrange();
+        tiles_selected_from_rack.clear();
+        recomputeWordSpans();
+        refresh();
     }
 
     private static class WordSpan {
@@ -139,6 +182,9 @@ public class Panel extends JPanel implements ActionListener {
                 handleBoardTileReturnedToRack(fromRow, fromCol);
             }
         });
+
+        // Initialize AI Animator
+        aiAnimator = new AIMoveAnimator(this, boardGridComponent, tileRackComponent);
     }
 
     @Override
@@ -152,13 +198,6 @@ public class Panel extends JPanel implements ActionListener {
         scoreComponent.drawScores(graphics2D, Player_score_1, Player_score_2, player);
 
         remainingTilesComponent.drawRemaining(graphics2D, 680, 300, tileBag.getRemaining());
-    }
-
-    private void recomputeWordSpans() {
-        cachedWordSpans = computeWordSpans();
-        if (ringOverlay != null) {
-            ringOverlay.repaint();
-        }
     }
 
     private void drawWordRings(Graphics2D g) {
@@ -305,7 +344,7 @@ public class Panel extends JPanel implements ActionListener {
         // Handle toolbar buttons: Submit(0), Skip(1), AI(2), Swap(3), Resign(4)
         JButton[] options = actionToolbarComponent.getOptionsButtons();
         if (e.getSource() == options[0] && !swap_active) { // Submit
-            if (!gameEnd) {
+            if (!gameEnd && !isAIAnimating) {
                 ArrayList<Integer> pos = new ArrayList<>();
                 for (int i = 0; i < temp_positions.size(); i++) {
                     pos.add((temp_positions.get(i)[0] * 15) + temp_positions.get(i)[1] + 1);
@@ -328,6 +367,11 @@ public class Panel extends JPanel implements ActionListener {
             change_turn();
             refresh();
         } else if (e.getSource() == options[2] && !swap_active) { // AI
+            if (isAIAnimating) {
+                System.out.println("AI animation already in progress");
+                return;
+            }
+            
             Reset_Tiles(player);
             System.out.println("AI MOVE");
 
@@ -335,59 +379,52 @@ public class Panel extends JPanel implements ActionListener {
             else board.setAiRack(tileBag.getRack_player_2());
 
             if (!gameEnd) {
+                // Run AI calculations
                 board.AI_TEST();
                 board.transAI_TEST();
                 board.AI.writeToFile();
                 board.readData("game_results/horiMoves.txt", true);
                 board.readData("game_results/vertiMoves.txt", false);
-                board.AI_placeWord(player);
-                AI_tileSetter();
-                update_score(player);
-                tileBag.rack_update(player);
-                tile_rack_rearrange();
-
-                if (tileBag.getTiles().size() == 0 && (board.potentialMove == null || (tiles_present_player1.size() == 0 || tiles_present_player2.size() == 0))) {
-                    gameEnd = true;
-                    if (tiles_present_player1.size() == 0 && tiles_present_player2.size() != 0) {
-                        for (Tile t : tiles_present_player2) {
-                            board.p1Score += t.value;
+                
+                // Get the AI move data
+                if (board.potentialMove != null) {
+                    isAIAnimating = true;
+                    
+                    // NOTE: board.potentialMove.tiles/positions describe the FULL formed
+                    // word, which includes any letters that were already sitting on the
+                    // board from earlier turns (TheAI.extendRight folds existing board
+                    // letters straight into the candidate word/position list). Only the
+                    // cells that are still empty are actually being placed by the AI this
+                    // turn - the rest are pre-existing tiles it built on top of. If we
+                    // hand the whole span to the animator/placeWord(), placeWord()'s
+                    // occupancy check will reject the move (it's already occupied) and
+                    // the "AI move" ends up flying tiles onto squares that are already
+                    // filled, then silently reverting - which looks like the AI making a
+                    // wrong/illegal move. So we filter down to just the new cells here.
+                    ArrayList<Tile> tiles = new ArrayList<>();
+                    ArrayList<int[]> positions = new ArrayList<>();
+                    for (int i = 0; i < board.potentialMove.positions.size(); i++) {
+                        int pos = board.potentialMove.positions.get(i);
+                        int[] rc = board.decryptPosition(pos);
+                        if (!board.getTheBoard()[rc[0]][rc[1]].isOccupied) {
+                            tiles.add(board.potentialMove.tiles.get(i));
+                            positions.add(rc);
                         }
                     }
-
-                    if (tiles_present_player2.size() == 0 && tiles_present_player1.size() != 0) {
-                        for (Tile t : tiles_present_player1) {
-                            board.p2Score += t.value;
-                        }
-                    }
-
-                    if (tiles_present_player1.size() != 0 && tiles_present_player2.size() != 0) {
-                        for (Tile t : tiles_present_player1) {
-                            board.p1Score -= t.value;
-                        }
-
-                        for (Tile t : tiles_present_player2) {
-                            board.p2Score -= t.value;
-                        }
-                    }
-
-                    board.stuff += "GAME ENDED" + "\n----------\nFINAL SCORE: \nPlayer1: " + board.p1Score + "\nPlayer2: " + board.p2Score + "\n";
-                    tileBag.getTiles().addAll(tiles_present_player1);
-                    tileBag.getTiles().addAll(tiles_present_player2);
-                    tiles_present_player2.clear();
-                    tiles_present_player1.clear();
-                    tile_rack_rearrange();
+                    
+                    // Clear temp positions and selected tiles
+                    temp_positions.clear();
+                    tiles_selected_from_rack.clear();
+                    
+                    // Start animation
+                    aiAnimator.animateAIMove(tiles, positions, player);
+                } else {
+                    // No valid AI move, just pass turn
+                    board.stuff += "AI: No valid move found\n";
+                    change_turn();
                     refresh();
                 }
-                board.writeData();
             }
-
-            board.potentialMove = null;
-            board.AI.legalMoves.clear();
-            board.AI.legalMoves_Trans.clear();
-            board.AI.hor_positions.clear();
-            board.AI.ver_positions.clear();
-            tileBag.remaining_tiles();
-            change_turn();
         } else if (e.getSource() == options[3] && !swap_active) { // Swap
             Reset_Tiles(player);
             System.out.println("Swap");
@@ -510,20 +547,6 @@ public class Panel extends JPanel implements ActionListener {
         boardGridComponent.AI_tileSetter(ref_board);
     }
 
-    private void Reset_Tiles(int player) {
-        if (player == 1) {
-            tiles_present_player1.addAll(tiles_selected_from_rack);
-        } else {
-            tiles_present_player2.addAll(tiles_selected_from_rack);
-        }
-        boardGridComponent.resetTiles(temp_positions, ref_board);
-        temp_positions.clear();
-        tile_rack_rearrange();
-        tiles_selected_from_rack.clear();
-        recomputeWordSpans();
-        refresh();
-    }
-
     public void refresh() {
         needsRepaint = true;
         coalescedRepaintTimer.restart();
@@ -546,14 +569,6 @@ public class Panel extends JPanel implements ActionListener {
             needsRepaint = true;
             coalescedRepaintTimer.restart();
         }
-    }
-
-    public ArrayList<Tile> getTiles_present_player1() {
-        return tiles_present_player1;
-    }
-
-    public ArrayList<Tile> getTiles_present_player2() {
-        return tiles_present_player2;
     }
 
     private void handleTileDrop(int dropPlayer, int tileIndex, int row, int col) {
