@@ -1,4 +1,27 @@
 PLAYER: 1
-GRODY
+COIL
+SCORE ON THE MOVE: 12
+----------------
+PLAYER: 2
+JOINDER
+SCORE ON THE MOVE: 85
+----------------
+PLAYER: 1
+WOO
+WO
+ON
+SCORE ON THE MOVE: 18
+----------------
+PLAYER: 2
+FARANG
 SCORE ON THE MOVE: 28
+----------------
+PLAYER: 1
+JOLL
+SCORE ON THE MOVE: 11
+----------------
+PLAYER: 2
+KERRY
+JOLLY
+SCORE ON THE MOVE: 55
 ----------------

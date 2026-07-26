@@ -78,10 +78,125 @@ public class Panel extends JPanel implements ActionListener {
     }
 
     public void recomputeWordSpans() {
+        computeStructuralIssues();
         cachedWordSpans = computeWordSpans();
         if (ringOverlay != null) {
             ringOverlay.repaint();
         }
+    }
+
+    // Structural validity of this turn's not-yet-submitted placement (temp_positions):
+    // are all the tiles placed this turn on one line, with no unfilled gaps?
+    // This is deliberately separate from dictionary word-correctness.
+    private boolean structurallyValid = true;
+    private java.util.List<int[]> cachedMisalignedCells = new ArrayList<>();
+    private java.util.List<int[]> cachedGapCells = new ArrayList<>();
+
+    /**
+     * Checks whether this turn's placed tiles form a structurally legal
+     * Scrabble placement: all in a single row or a single column, with no
+     * empty gap between them (a gap is fine only if an already-committed
+     * board tile fills it). This says nothing about whether the letters
+     * spell a real word - that's wordValidator's job in computeWordSpans().
+     * Without this check, computeWordSpans() would happily draw a "valid"
+     * green rectangle around any run that happens to spell a real word,
+     * even if the tiles making it up aren't actually connected the way the
+     * player thinks (e.g. two disconnected pairs of tiles that each,
+     * independently, sit next to a real word).
+     */
+    private void computeStructuralIssues() {
+        cachedMisalignedCells = new ArrayList<>();
+        cachedGapCells = new ArrayList<>();
+        structurallyValid = true;
+
+        if (temp_positions.size() <= 1) return;
+
+        int r0 = temp_positions.get(0)[0];
+        int c0 = temp_positions.get(0)[1];
+        boolean rLock = true, cLock = true;
+        for (int[] p : temp_positions) {
+            if (p[0] != r0) rLock = false;
+            if (p[1] != c0) cLock = false;
+        }
+
+        if (!rLock && !cLock) {
+            // Tiles aren't even on one line. Flag whichever tiles are the
+            // minority against the row/column that most of them share.
+            structurallyValid = false;
+
+            Map<Integer, Integer> rowCounts = new HashMap<>();
+            Map<Integer, Integer> colCounts = new HashMap<>();
+            for (int[] p : temp_positions) {
+                rowCounts.merge(p[0], 1, Integer::sum);
+                colCounts.merge(p[1], 1, Integer::sum);
+            }
+
+            int bestRow = r0, bestRowCount = 0;
+            for (Map.Entry<Integer, Integer> e : rowCounts.entrySet()) {
+                if (e.getValue() > bestRowCount) { bestRow = e.getKey(); bestRowCount = e.getValue(); }
+            }
+            int bestCol = c0, bestColCount = 0;
+            for (Map.Entry<Integer, Integer> e : colCounts.entrySet()) {
+                if (e.getValue() > bestColCount) { bestCol = e.getKey(); bestColCount = e.getValue(); }
+            }
+
+            if (bestRowCount >= bestColCount) {
+                for (int[] p : temp_positions) if (p[0] != bestRow) cachedMisalignedCells.add(p);
+            } else {
+                for (int[] p : temp_positions) if (p[1] != bestCol) cachedMisalignedCells.add(p);
+            }
+            return;
+        }
+
+        // All on one line - check for gaps between the placed tiles that
+        // aren't already filled by an existing (previously committed) tile.
+        if (rLock) {
+            int cMin = c0, cMax = c0;
+            for (int[] p : temp_positions) { cMin = Math.min(cMin, p[1]); cMax = Math.max(cMax, p[1]); }
+            for (int c = cMin; c <= cMax; c++) {
+                if (findTempIndexAt(r0, c) == -1 && !ref_board[r0][c].isOccupied) {
+                    cachedGapCells.add(new int[]{r0, c});
+                }
+            }
+        } else {
+            int rMin = r0, rMax = r0;
+            for (int[] p : temp_positions) { rMin = Math.min(rMin, p[0]); rMax = Math.max(rMax, p[0]); }
+            for (int r = rMin; r <= rMax; r++) {
+                if (findTempIndexAt(r, c0) == -1 && !ref_board[r][c0].isOccupied) {
+                    cachedGapCells.add(new int[]{r, c0});
+                }
+            }
+        }
+
+        if (!cachedGapCells.isEmpty()) structurallyValid = false;
+    }
+
+    /** Draws markers over cells that break the structural line: a solid red box
+     *  around placed tiles that are off the shared row/column, and a dashed red
+     *  box over empty cells that leave a gap in an otherwise straight line. */
+    private void drawStructuralWarnings(Graphics2D g) {
+        if (cachedMisalignedCells.isEmpty() && cachedGapCells.isEmpty()) return;
+
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Stroke oldStroke = g.getStroke();
+        g.setColor(new Color(220, 50, 50));
+        int margin = 3;
+        int arc = 12;
+
+        g.setStroke(new BasicStroke(3f));
+        for (int[] p : cachedMisalignedCells) {
+            Rectangle b = boardGridComponent.getButton(p[0], p[1]).getBounds();
+            g.drawRoundRect(b.x - margin, b.y - margin, b.width + margin * 2, b.height + margin * 2, arc, arc);
+        }
+
+        float[] dash = {6f, 6f};
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dash, 0));
+        for (int[] p : cachedGapCells) {
+            Rectangle b = boardGridComponent.getButton(p[0], p[1]).getBounds();
+            g.drawRoundRect(b.x - margin, b.y - margin, b.width + margin * 2, b.height + margin * 2, arc, arc);
+        }
+
+        g.setStroke(oldStroke);
     }
 
     public void Reset_Tiles(int player) {
@@ -152,6 +267,7 @@ public class Panel extends JPanel implements ActionListener {
             @Override
             protected void paintComponent(Graphics g) {
                 drawWordRings((Graphics2D) g);
+                drawStructuralWarnings((Graphics2D) g);
             }
         };
         ringOverlay.setOpaque(false);
@@ -259,7 +375,7 @@ public class Panel extends JPanel implements ActionListener {
                     StringBuilder sb = new StringBuilder();
                     for (int cc = c1; cc <= c2; cc++) sb.append(grid[r][cc]);
                     String word = sb.toString();
-                    spans.add(new WordSpan(r, c1, r, c2, word, wordValidator.isValid(word)));
+                    spans.add(new WordSpan(r, c1, r, c2, word, structurallyValid && wordValidator.isValid(word)));
                 }
             }
 
@@ -272,7 +388,7 @@ public class Panel extends JPanel implements ActionListener {
                     StringBuilder sb = new StringBuilder();
                     for (int rr = r1; rr <= r2; rr++) sb.append(grid[rr][c]);
                     String word = sb.toString();
-                    spans.add(new WordSpan(r1, c, r2, c, word, wordValidator.isValid(word)));
+                    spans.add(new WordSpan(r1, c, r2, c, word, structurallyValid && wordValidator.isValid(word)));
                 }
             }
         }
