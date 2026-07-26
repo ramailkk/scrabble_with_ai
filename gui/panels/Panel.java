@@ -116,9 +116,9 @@ public class Panel extends JPanel implements ActionListener {
         boardLayeredPane.add(ringOverlay, JLayeredPane.PALETTE_LAYER);
 
         boardGridComponent.layoutBoundsOnce(50, 50, 40, 40);
-        tileRackComponent.layoutPlayer1Once(720, 150, 40, 40);
-        tileRackComponent.layoutPlayer2Once(720, 550, 40, 40);
-        actionToolbarComponent.layoutToolbarOnce(450, 610, 1000, 60);
+        tileRackComponent.layoutPlayer2Once(720, 150, 40, 40);
+        tileRackComponent.layoutPlayer1Once(720, 510, 40, 40);
+        actionToolbarComponent.layoutToolbarOnce(440, 570, 1000, 60);
 
         tileRackComponent.setBoardGridComponent(boardGridComponent);
         tileRackComponent.setDropListener(this::handleTileDrop);

@@ -9,9 +9,9 @@ public class ActionToolbarComponent {
     private String[] buttonLabels = {"Submit", "Skip", "AI", "Swap", "Resign"};
     private Color[] buttonColors = {
         new Color(144, 238, 144),    // Submit - Green
-        new Color(238, 215, 161),    // Skip - Gold
-        new Color(255, 188, 218),    // AI - Pink
-        new Color(65, 105, 225),     // Swap - Blue
+        new Color(245, 242, 235),    // Skip - Grey
+        new Color(245, 242, 235),    // AI - Grey
+        new Color(245, 242, 235),     // Swap - Grey
         new Color(235, 45, 58)       // Resign - Red
     };
     private String[] iconPaths = {
