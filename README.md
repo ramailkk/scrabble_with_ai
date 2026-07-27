@@ -1,133 +1,81 @@
-# Scrabble Game with AI
+# Scrabble with AI
 
-## Overview
+A full desktop Scrabble game, written in Java Swing, that lets a human player face off against an AI opponent. The AI's move generator is based on the anchor-square / cross-check backtracking algorithm from Andrew W. Appel and Guy J. Jacobson's classic paper, **["The World's Fastest Scrabble Program"](https://www.cs.upc.edu/prop/data/uploads/fastestscrabble.pdf)** (*Communications of the ACM*, May 1988).
 
-A complete implementation of the classic Scrabble board game featuring a powerful AI opponent. This project implements the algorithm described in **"The World's Fastest Scrabble Program"** by Andrew W. Appel and Guy J. Jacobson, utilizing efficient data structures for rapid move generation and word validation.
+## How it works
 
-### 📄 Reference Paper
-[The World's Fastest Scrabble Program](https://www.cs.upc.edu/prop/data/uploads/fastestscrabble.pdf) – Andrew W. Appel and Guy J. Jacobson, Princeton University
+Appel and Jacobson's insight was that Scrabble move generation can be reduced from a 2D board search to a series of 1D row searches by precomputing two things for every row before search begins:
 
----
+- **Anchors** — empty squares adjacent to an already-placed tile. Every legal move must cover at least one anchor, so the search only ever starts from these squares instead of scanning the whole board.
+- **Cross-checks** — for each empty square, the set of letters that would form a *valid* perpendicular word if a tile were placed there. This turns a 2D legality check into an O(1) bitset lookup.
 
-## Features
+From each anchor, the algorithm backtracks in two phases:
+1. **Place a left part** — tiles from the rack laid down to the left of the anchor.
+2. **Extend right** — grow the word letter by letter, using rack tiles (filtered through the cross-check set) and any tiles already on the board, recording a legal move every time a dictionary word is completed.
 
-### Core Gameplay
-- **Two-player mode** – Human vs. Human or Human vs. AI
-- **Intelligent AI opponent** – Powered by the Appel-Jacobson algorithm
-- **Standard Scrabble rules** – Official tile distribution, scoring, and special squares
-- **Real-time scoring** – Dynamic score updates with potential move preview
+The original paper stores the dictionary as a **DAWG** (Directed Acyclic Word Graph) — a trie with duplicate suffix subtrees merged — to keep the ~90k-word lexicon small enough to hold entirely in memory. This implementation follows the same anchor/cross-check/extend-right search strategy, but represents the dictionary as a standard 26-way **trie** (`MyTrie` / `TrieNode`) rather than a minimized DAWG, trading some memory efficiency for a simpler implementation.
 
-### AI Implementation
-- **Trie-based dictionary** – Efficient O(word_length) word validation and prefix matching
-- **Anchor square search** – Only explores promising positions adjacent to existing tiles
-- **Cross-check optimization** – Pre-computed valid letters for each board cell
-- **Greedy scoring** – Selects the highest-scoring valid move from all candidates
-- **Move logging** – All AI move candidates saved for analysis
+The AI evaluates every legal move it finds and greedily plays the highest-scoring one — the same "no real strategy, just brute-force one-ply search" approach the paper describes, which the authors note is still strong enough to beat most human players.
 
-### User Interface
-- **Drag-and-drop** – Intuitive tile placement by dragging from rack to board
-- **Tile movement** – Drag tiles between board cells or back to the rack
-- **Visual feedback**
-  - Green highlights for valid words
-  - Red warnings for invalid placements
-  - Structural error indicators (misaligned tiles, gaps)
-- **AI move animation** – Watch the AI place tiles one by one
-- **Tile swap dialog** – Exchange unwanted tiles from your rack
-- **Remaining tiles display** – Real-time view of tile bag contents with vowel/consonant counts
-
-### Game Logging
-- **moves.txt** – Complete move history with scores
-- **horiMoves.txt** – All horizontal AI move candidates
-- **vertiMoves.txt** – All vertical AI move candidates
-
----
-
-## Project Structure
+## Project structure
 
 ```
-ramailkk-scrabble_with_ai/
-├── application/
-│   ├── ai/
-│   │   └── TheAI.java                    # AI move generation and scoring
-│   ├── datastructures/
-│   │   ├── MyTrie.java                   # Trie dictionary implementation
-│   │   └── TrieNode.java                 # Trie node structure
-│   └── model/
-│       ├── Board.java                    # Game board logic and state
-│       ├── BoardCell.java                # Individual cell with cross-checks
-│       ├── Move.java                     # Move data structure
-│       ├── Tile.java                     # Tile with letter and value
-│       └── TileBag.java                  # Tile bag with distribution
-│
-├── gui/
-│   ├── components/
-│   │   ├── ActionToolbarComponent.java   # Control buttons
-│   │   ├── AIMoveAnimator.java           # AI tile placement animation
-│   │   ├── BoardGridComponent.java       # Board rendering and interaction
-│   │   ├── RemainingTilesComponent.java  # Tile bag visualization
-│   │   ├── RoundedButton.java            # Custom button styling
-│   │   ├── ScoreComponent.java           # Score display with preview
-│   │   └── TileRackComponent.java        # Player tile racks
-│   ├── frames/
-│   │   ├── Frame.java                    # Main game window
-│   │   └── Swap_Frame.java               # Swap dialog window
-│   └── panels/
-│       ├── Panel.java                    # Main game panel (controller)
-│       └── Swap_Panel.java               # Swap panel logic
-│
-├── game_results/                         # Game logs
-│   ├── moves.txt                         # All moves with scores
-│   ├── horiMoves.txt                     # Horizontal AI moves
-│   └── vertiMoves.txt                    # Vertical AI moves
-│
-├── resources/
-│   ├── imgs/                             # Tile images and icons
-│   └── Dictionaries/
-│       └── words.txt                     # Word list dictionary
-│
-└── misc/
-    └── GrpMembers.txt                    # Team member information
+application/
+├── ai/
+│   └── TheAI.java          Move generation: anchors, cross-checks, backtracking search
+├── datastructures/
+│   ├── MyTrie.java         Dictionary trie (insert, validate, prefix lookup)
+│   └── TrieNode.java       Trie node (26 child pointers + end-of-word flag)
+└── model/
+    ├── Board.java          15x15 board, premium squares, scoring, move validation
+    ├── BoardCell.java      Single board cell (tile, premium type, cross-checks)
+    ├── Move.java           A candidate/placed move (tiles, positions, score)
+    ├── Tile.java           A single letter tile and its point value
+    └── TileBag.java        The 100-tile bag, draws, and remaining-tile tracking
+
+gui/
+├── components/             Swing components: board grid, tile rack, scoreboard,
+│                            remaining-tiles counter, AI move animation, toolbar
+├── frames/                 Top-level JFrame windows (main game window, tile-swap window)
+└── panels/                 JPanel game logic (turn handling, drag/drop, swapping)
+
+game_results/                Move logs written out during play (see below)
+misc/GrpMembers.txt          Project group members
 ```
 
----
+## Getting started
 
-## How the AI Works
+1. Make sure you have a JDK installed.
+2. Compile the sources (or open the project in your IDE of choice — the `application` and `gui` packages are laid out as standard Java source roots).
+3. Run `gui.frames.Frame`, which contains the `main` method:
 
-The AI follows the **Appel-Jacobson algorithm** with the following key steps:
+   ```
+   java gui.frames.Frame
+   ```
 
-### 1. Anchor Square Identification
-- Identifies empty squares adjacent to existing tiles on the board
-- These anchor squares are the only positions where new words can be formed
+   If you have a pre-built `.jar`, you can just run that instead.
 
-### 2. Cross-Check Computation
-- For each anchor square, determines which letters can legally be placed there
-- Considers vertical word formations when building horizontal words (and vice versa)
-- Pre-computes valid letters to prune the search space
+## How to play
 
-### 3. Move Generation
-- For each anchor, explores left and right (or up and down) directions
-- Uses the trie to efficiently generate all valid words
-- Tracks partial words and extends them only if they form valid prefixes
+- The game opens on a standard 15x15 Scrabble board with double/triple letter and word premium squares.
+- Drag tiles from your rack onto the board to form a word, or click the robot icon to let the AI take its turn.
+- Use the swap panel to exchange tiles from your rack with the bag instead of playing a word.
+- Scores, the remaining tile count, and whose turn it is are all shown live in the side panels.
 
-### 4. Scoring
-- Calculates score for each valid move including:
-  - Tile values (1-10 points)
-  - Letter bonuses (DL, TL)
-  - Word bonuses (DW, TW)
-  - Bingo bonus (+50 for using all 7 tiles)
-- Selects the highest-scoring move
+## Move logs
 
----
+While the game runs, the AI's search results and move history are written to the `game_results/` folder:
 
-## Game Flow
+- **`moves.txt`** — a running log of every move played, by whom, and its score.
+- **`horiMoves.txt`** — all legal horizontal moves found for the AI's current turn, with their board positions.
+- **`vertiMoves.txt`** — the same, for vertical moves.
 
-1. **Player 1 starts** – Place tiles on the board by clicking rack tiles then board cells, or by drag-and-drop
-2. **Valid move required**
-   - Tiles must form valid dictionary words
-   - Words must connect to existing tiles (except first move at center)
-   - All placed tiles must be in a single row or column without gaps
-3. **Score calculation** – Points awarded based on tile values, bonuses, and bingo
-4. **Tile replenishment** – Rack refilled to 7 tiles from the tile bag
-5. **Turn alternates** – Player 1 ↔ Player 2
-6. **Pressing AI Button** – Let the AI make a move on your behalf
-7. **Game ends** – When tile bag is empty and a player cannot make a valid move
+## Contributions
+
+This was built as a data structures course project. Contributions, bug reports, and improvements are welcome — feel free to fork and extend it.
+
+## Acknowledgments
+
+Thanks to itbaan's instructor, Sir Jawwad Ahmed Farid, for inspiring him to use the Appel & Jacobson paper that this project's move generator is based on.
+
+Enjoy.
