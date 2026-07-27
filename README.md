@@ -55,6 +55,11 @@ misc/GrpMembers.txt          Project group members
 
    If you have a pre-built `.jar`, you can just run that instead.
 
+### Quick play — Windows .exe (no Java required)
+
+If you just want to play without setting up a JDK, grab the prebuilt Windows executable from the [v1.0 release](https://github.com/ramailkk/scrabble_with_ai/releases/tag/v1.0) and run it directly.
+   
+
 ## How to play
 
 - The game opens on a standard 15x15 Scrabble board with double/triple letter and word premium squares.
