@@ -9,6 +9,8 @@ A complete implementation of the classic Scrabble board game featuring a powerfu
 
 ---
 
+## Features
+
 ### Core Gameplay
 - **Two-player mode** – Human vs. Human or Human vs. AI
 - **Intelligent AI opponent** – Powered by the Appel-Jacobson algorithm
@@ -41,44 +43,51 @@ A complete implementation of the classic Scrabble board game featuring a powerfu
 ---
 
 ## Project Structure
+
+```
 ramailkk-scrabble_with_ai/
 ├── application/
-│ ├── ai/
-│ │ └── TheAI.java # AI move generation and scoring
-│ ├── datastructures/
-│ │ ├── MyTrie.java # Trie dictionary implementation
-│ │ └── TrieNode.java # Trie node structure
-│ └── model/
-│ ├── Board.java # Game board logic and state
-│ ├── BoardCell.java # Individual cell with cross-checks
-│ ├── Move.java # Move data structure
-│ ├── Tile.java # Tile with letter and value
-│ └── TileBag.java # Tile bag with distribution
+│   ├── ai/
+│   │   └── TheAI.java                    # AI move generation and scoring
+│   ├── datastructures/
+│   │   ├── MyTrie.java                   # Trie dictionary implementation
+│   │   └── TrieNode.java                 # Trie node structure
+│   └── model/
+│       ├── Board.java                    # Game board logic and state
+│       ├── BoardCell.java                # Individual cell with cross-checks
+│       ├── Move.java                     # Move data structure
+│       ├── Tile.java                     # Tile with letter and value
+│       └── TileBag.java                  # Tile bag with distribution
+│
 ├── gui/
-│ ├── components/
-│ │ ├── ActionToolbarComponent.java # Control buttons
-│ │ ├── AIMoveAnimator.java # AI tile placement animation
-│ │ ├── BoardGridComponent.java # Board rendering and interaction
-│ │ ├── RemainingTilesComponent.java # Tile bag visualization
-│ │ ├── RoundedButton.java # Custom button styling
-│ │ ├── ScoreComponent.java # Score display with preview
-│ │ └── TileRackComponent.java # Player tile racks
-│ ├── frames/
-│ │ ├── Frame.java # Main game window
-│ │ └── Swap_Frame.java # Swap dialog window
-│ └── panels/
-│ ├── Panel.java # Main game panel (controller)
-│ └── Swap_Panel.java # Swap panel logic
-├── game_results/ # Game logs
-│ ├── moves.txt # All moves with scores
-│ ├── horiMoves.txt # Horizontal AI moves
-│ └── vertiMoves.txt # Vertical AI moves
+│   ├── components/
+│   │   ├── ActionToolbarComponent.java   # Control buttons
+│   │   ├── AIMoveAnimator.java           # AI tile placement animation
+│   │   ├── BoardGridComponent.java       # Board rendering and interaction
+│   │   ├── RemainingTilesComponent.java  # Tile bag visualization
+│   │   ├── RoundedButton.java            # Custom button styling
+│   │   ├── ScoreComponent.java           # Score display with preview
+│   │   └── TileRackComponent.java        # Player tile racks
+│   ├── frames/
+│   │   ├── Frame.java                    # Main game window
+│   │   └── Swap_Frame.java               # Swap dialog window
+│   └── panels/
+│       ├── Panel.java                    # Main game panel (controller)
+│       └── Swap_Panel.java               # Swap panel logic
+│
+├── game_results/                         # Game logs
+│   ├── moves.txt                         # All moves with scores
+│   ├── horiMoves.txt                     # Horizontal AI moves
+│   └── vertiMoves.txt                    # Vertical AI moves
+│
 ├── resources/
-│ ├── imgs/ # Tile images and icons
-│ └── Dictionaries/
-│ └── words.txt # Word list dictionary
+│   ├── imgs/                             # Tile images and icons
+│   └── Dictionaries/
+│       └── words.txt                     # Word list dictionary
+│
 └── misc/
-└── GrpMembers.txt # Team member information
+    └── GrpMembers.txt                    # Team member information
+```
 
 ---
 
@@ -120,6 +129,5 @@ The AI follows the **Appel-Jacobson algorithm** with the following key steps:
 3. **Score calculation** – Points awarded based on tile values, bonuses, and bingo
 4. **Tile replenishment** – Rack refilled to 7 tiles from the tile bag
 5. **Turn alternates** – Player 1 ↔ Player 2
-6. **Pressing AI Button** Let the AI make a move on your behalf |
+6. **Pressing AI Button** – Let the AI make a move on your behalf
 7. **Game ends** – When tile bag is empty and a player cannot make a valid move
-
